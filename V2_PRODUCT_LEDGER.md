@@ -1,6 +1,6 @@
 # Code Space V2 Product Ledger
 
-**Updated:** 10 Aug 2026 — 21:25 UK
+**Updated:** 10 Aug 2026 — startup handoff hardening
 
 This is the active build / handoff ledger for:
 
@@ -253,8 +253,10 @@ Immediate order:
 
 Current debugging priority:
 
-- inspect why `server.js` readiness detection does not complete even though the spawned code-server console reports it is listening
-- capture launcher stdout/stderr if needed
+- launcher now starts code-server as a detached WSL service and waits for an HTTP response (not only a TCP socket)
+- failed starts preserve a WSL log at `/tmp/code-space-code-server.log` and return the exact command to inspect it
+- concurrent start requests share one startup attempt instead of racing each other
+- test the updated one-click path on the HP before adding features
 - do not change the proven Ubuntu/code-server installation unless evidence requires it
 
 After this loop is proven:

@@ -18,6 +18,8 @@ const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || 'code-serv
 const APP_ROOT = __dirname;
 const MAX_BODY = 128 * 1024;
 let codeServerProcess = null;
+let codeServerStartPromise = null;
+let lastCodeServerStartError = null;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -131,29 +133,29 @@ async function prepareProject(projectPath) {
 }
 
 async function isCodeServerReachable(timeout = 1800) {
+  let parsed;
+  try {
+    parsed = new URL(CODE_SERVER_URL);
+  } catch {
+    return false;
+  }
+
   return new Promise((resolve) => {
-    let parsed;
-    try {
-      parsed = new URL(CODE_SERVER_URL);
-    } catch {
-      return resolve(false);
-    }
-
-    const port = Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
-    const socket = net.createConnection({
-      host: parsed.hostname,
-      port
+    const request = http.request({
+      protocol: parsed.protocol,
+      hostname: parsed.hostname,
+      port: parsed.port || undefined,
+      method: 'GET',
+      path: '/',
+      headers: { Connection: 'close' },
+      timeout
+    }, (response) => {
+      response.resume();
+      resolve(Boolean(response.statusCode));
     });
-
-    const finish = (reachable) => {
-      socket.destroy();
-      resolve(reachable);
-    };
-
-    socket.setTimeout(timeout);
-    socket.once('connect', () => finish(true));
-    socket.once('timeout', () => finish(false));
-    socket.once('error', () => finish(false));
+    request.once('timeout', () => request.destroy());
+    request.once('error', () => resolve(false));
+    request.end();
   });
 }
 
@@ -173,10 +175,12 @@ function startDetachedCodeServer() {
     child = spawn('wsl.exe', [
       '-d', 'Ubuntu',
       '--', 'bash', '-lc',
-      'exec code-server --bind-addr 0.0.0.0:8080'
+      // Keep code-server alive after this short WSL launcher exits. The log is
+      // deliberately retained in WSL so a failed one-click launch is diagnosable.
+      'nohup setsid code-server --bind-addr 0.0.0.0:8080 >/tmp/code-space-code-server.log 2>&1 < /dev/null &'
     ], {
       windowsHide: true,
-      detached: true,
+      detached: false,
       stdio: 'ignore'
     });
   } else {
@@ -200,16 +204,32 @@ async function ensureCodeServer() {
     return { started: false, running: true, codeServerUrl: CODE_SERVER_URL };
   }
 
-  const pid = startDetachedCodeServer();
-  const deadline = Date.now() + 20000;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    if (await isCodeServerReachable(1200)) {
-      return { started: true, running: true, pid, codeServerUrl: CODE_SERVER_URL };
-    }
-  }
+  if (codeServerStartPromise) return codeServerStartPromise;
 
-  throw new Error(`code-server did not become reachable at ${CODE_SERVER_URL}. Check that Ubuntu WSL is installed and code-server is available inside it.`);
+  codeServerStartPromise = (async () => {
+    lastCodeServerStartError = null;
+    const pid = startDetachedCodeServer();
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      if (await isCodeServerReachable(2500)) {
+        return { started: true, running: true, pid, codeServerUrl: CODE_SERVER_URL };
+      }
+    }
+
+    const logHint = process.platform === 'win32'
+      ? ' Inspect WSL log with: wsl -d Ubuntu -- bash -lc "tail -60 /tmp/code-space-code-server.log"'
+      : '';
+    const error = new Error(`code-server did not become HTTP-ready at ${CODE_SERVER_URL}.${logHint}`);
+    lastCodeServerStartError = safeError(error);
+    throw error;
+  })();
+
+  try {
+    return await codeServerStartPromise;
+  } finally {
+    codeServerStartPromise = null;
+  }
 }
 
 async function runtimeStatus() {
@@ -227,6 +247,7 @@ async function runtimeStatus() {
     codeServerPlatform: process.platform === 'win32' ? 'wsl' : process.platform,
     codeServer: await isCodeServerReachable(),
     codeServerPid: codeServerProcess?.pid || null,
+    codeServerStartError: lastCodeServerStartError,
     git: Boolean(gitVersion),
     gitVersion
   };
