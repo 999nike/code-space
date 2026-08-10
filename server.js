@@ -13,7 +13,7 @@ const HOST = '127.0.0.1';
 const PORT = Number(process.env.CODE_SPACE_PORT || 8090);
 const ROOT = path.resolve(process.env.CODE_SPACE_WORKSPACES || 'E:\\WIZZ-Server\\workspaces');
 const CODE_SERVER_URL = String(process.env.CODE_SERVER_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
-const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || 'code-server').trim();
+const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || path.join(__dirname, 'start-code-server.cmd')).trim();
 const APP_ROOT = __dirname;
 const MAX_BODY = 128 * 1024;
 let codeServerProcess = null;
@@ -192,7 +192,7 @@ async function ensureCodeServer() {
     }
   }
 
-  throw new Error(`code-server did not become reachable at ${CODE_SERVER_URL}. Make sure code-server is installed or set CODE_SERVER_COMMAND to its executable path.`);
+  throw new Error(`code-server did not become reachable at ${CODE_SERVER_URL}. Check that Ubuntu WSL is installed and code-server is available inside it.`);
 }
 
 async function runtimeStatus() {
@@ -207,6 +207,7 @@ async function runtimeStatus() {
     port: PORT,
     workspaceRoot: ROOT,
     codeServerUrl: CODE_SERVER_URL,
+    codeServerPlatform: process.platform === 'win32' ? 'wsl' : process.platform,
     codeServer: await isCodeServerReachable(),
     codeServerPid: codeServerProcess?.pid || null,
     git: Boolean(gitVersion),
@@ -296,4 +297,5 @@ server.listen(PORT, HOST, async () => {
   console.log(`Code Space: http://${HOST}:${PORT}`);
   console.log(`Workspaces: ${ROOT}`);
   console.log(`code-server: ${CODE_SERVER_URL}`);
+  if (process.platform === 'win32') console.log('code-server engine: Ubuntu WSL');
 });
