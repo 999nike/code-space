@@ -5,7 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
@@ -13,8 +13,10 @@ const HOST = '127.0.0.1';
 const PORT = Number(process.env.CODE_SPACE_PORT || 8090);
 const ROOT = path.resolve(process.env.CODE_SPACE_WORKSPACES || 'E:\\WIZZ-Server\\workspaces');
 const CODE_SERVER_URL = String(process.env.CODE_SERVER_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
+const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || 'code-server').trim();
 const APP_ROOT = __dirname;
 const MAX_BODY = 128 * 1024;
+let codeServerProcess = null;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -127,19 +129,76 @@ async function prepareProject(projectPath) {
   }
 }
 
+async function isCodeServerReachable(timeout = 1800) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const response = await fetch(CODE_SERVER_URL, { redirect: 'manual', signal: controller.signal });
+    clearTimeout(timer);
+    return response.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+function codeServerBindAddress() {
+  try {
+    const parsed = new URL(CODE_SERVER_URL);
+    return parsed.host || '127.0.0.1:8080';
+  } catch {
+    return '127.0.0.1:8080';
+  }
+}
+
+function startDetachedCodeServer() {
+  const args = ['--bind-addr', codeServerBindAddress()];
+  let child;
+
+  if (process.platform === 'win32') {
+    const quotedCommand = `"${CODE_SERVER_COMMAND.replaceAll('"', '""')}" --bind-addr "${codeServerBindAddress()}"`;
+    child = spawn('cmd.exe', ['/d', '/s', '/c', quotedCommand], {
+      cwd: ROOT,
+      windowsHide: true,
+      detached: true,
+      stdio: 'ignore'
+    });
+  } else {
+    child = spawn(CODE_SERVER_COMMAND, args, {
+      cwd: ROOT,
+      detached: true,
+      stdio: 'ignore'
+    });
+  }
+
+  child.on('error', (error) => {
+    console.error('[code-space] code-server start failed:', safeError(error));
+  });
+  child.unref();
+  codeServerProcess = child;
+  return child.pid || null;
+}
+
+async function ensureCodeServer() {
+  if (await isCodeServerReachable()) {
+    return { started: false, running: true, codeServerUrl: CODE_SERVER_URL };
+  }
+
+  const pid = startDetachedCodeServer();
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    if (await isCodeServerReachable(1200)) {
+      return { started: true, running: true, pid, codeServerUrl: CODE_SERVER_URL };
+    }
+  }
+
+  throw new Error(`code-server did not become reachable at ${CODE_SERVER_URL}. Make sure code-server is installed or set CODE_SERVER_COMMAND to its executable path.`);
+}
+
 async function runtimeStatus() {
   let gitVersion = null;
   try {
     gitVersion = await git(['--version'], APP_ROOT, 5000);
-  } catch {}
-
-  let codeServer = false;
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1800);
-    const response = await fetch(CODE_SERVER_URL, { redirect: 'manual', signal: controller.signal });
-    clearTimeout(timer);
-    codeServer = response.status > 0;
   } catch {}
 
   return {
@@ -148,7 +207,8 @@ async function runtimeStatus() {
     port: PORT,
     workspaceRoot: ROOT,
     codeServerUrl: CODE_SERVER_URL,
-    codeServer,
+    codeServer: await isCodeServerReachable(),
+    codeServerPid: codeServerProcess?.pid || null,
     git: Boolean(gitVersion),
     gitVersion
   };
@@ -161,6 +221,10 @@ async function handleApi(req, res, pathname) {
 
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const body = await readBody(req);
+
+  if (pathname === '/api/code-server/start') {
+    return json(res, 200, await ensureCodeServer());
+  }
 
   if (pathname === '/api/projects/new') {
     const target = resolveNewProjectPath(body.path, body.name);
