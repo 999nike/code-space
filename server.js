@@ -247,7 +247,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/projects/new') {
     const target = resolveNewProjectPath(body.path, body.name);
     const existing = await fsp.stat(target).catch(() => null);
-    if (existing) throw new Error('That project folder already exists');
+    if (existing) throw new Error('That project folder already exists — use Import Project to open it');
     await fsp.mkdir(target, { recursive: true });
     if (body.initGit !== false) await git(['init'], target, 15000).catch(() => null);
     return json(res, 201, { path: target, created: true });
@@ -258,7 +258,7 @@ async function handleApi(req, res, pathname) {
     if (!repo) throw new Error('Git repository URL is required');
     const target = resolveNewProjectPath(body.path, body.name);
     const existing = await fsp.stat(target).catch(() => null);
-    if (existing) throw new Error('That project folder already exists');
+    if (existing) throw new Error('That project folder already exists — use Import Project to open it');
     await fsp.mkdir(path.dirname(target), { recursive: true });
     await git(['clone', repo, target], ROOT, 120000);
     return json(res, 201, { path: target, cloned: true, repo });
@@ -339,7 +339,7 @@ function proxyCodeServerUpgrade(req, socket, head) {
       if (Array.isArray(value)) value.forEach((item) => lines.push(`${name}: ${item}`));
       else if (value !== undefined) lines.push(`${name}: ${value}`);
     }
-    upstream.write(`${lines.join('\\r\\n')}\\r\\n\\r\\n`);
+    upstream.write(`${lines.join('\r\n')}\r\n\r\n`);
     if (head.length) upstream.write(head);
     socket.pipe(upstream).pipe(socket);
   });
