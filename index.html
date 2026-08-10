@@ -33,6 +33,18 @@
         <div class="top-actions"><button class="button secondary" id="importProjectButton">Import Project</button><button class="button primary" id="newProjectButton">＋ New Project</button></div>
       </header>
 
+  <section class="code-mode" id="codeMode" hidden>
+    <header class="code-mode-bar">
+      <div class="code-mode-brand"><span class="mini-orb">&lt;/&gt;</span><strong>Code Space</strong><small id="activeProjectLabel">code-server</small></div>
+      <div class="code-mode-actions"><button id="openExternalButton">Open separately</button><button class="exit-button" id="exitCodeModeButton">Exit Code Mode</button></div>
+    </header>
+    <div class="code-frame-wrap">
+      <iframe id="codeServerFrame" title="code-server" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="no-referrer"></iframe>
+      <div class="frame-notice" id="frameNotice"><div class="empty-orb">&lt;/&gt;</div><h2>Starting Code Space…</h2><p>Code Space is making sure code-server is running before opening the coding environment.</p></div>
+    </div>
+  </section>
+
+
       <section class="quick-section">
         <div class="section-heading"><div><p class="eyebrow purple">Quick start</p><h3>Start coding</h3></div></div>
         <div class="quick-grid">
@@ -85,17 +97,6 @@
       </div>
     </section>
   </main>
-
-  <section class="code-mode" id="codeMode" hidden>
-    <header class="code-mode-bar">
-      <div class="code-mode-brand"><span class="mini-orb">&lt;/&gt;</span><strong>Code Space</strong><small id="activeProjectLabel">code-server</small></div>
-      <div class="code-mode-actions"><button id="openExternalButton">Open separately</button><button class="exit-button" id="exitCodeModeButton">Exit Code Mode</button></div>
-    </header>
-    <div class="code-frame-wrap">
-      <iframe id="codeServerFrame" title="code-server" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="no-referrer"></iframe>
-      <div class="frame-notice" id="frameNotice"><div class="empty-orb">&lt;/&gt;</div><h2>Starting Code Space…</h2><p>Code Space is making sure code-server is running before opening the coding environment.</p></div>
-    </div>
-  </section>
 
   <dialog class="modal" id="projectDialog">
     <form id="projectForm">
