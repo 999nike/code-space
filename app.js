@@ -20,6 +20,7 @@
     projectDialogTitle: document.getElementById('projectDialogTitle'),
     projectNameInput: document.getElementById('projectNameInput'),
     projectPathInput: document.getElementById('projectPathInput'),
+    projectPathHint: document.getElementById('projectPathHint'),
     projectRepoInput: document.getElementById('projectRepoInput'),
     repoField: document.getElementById('repoField'),
     projectSubmitButton: document.getElementById('projectSubmitButton'),
@@ -130,22 +131,26 @@
     projectMode = mode;
     els.projectForm.reset();
     els.repoField.hidden = mode === 'open';
+    els.projectPathInput.required = mode === 'open';
     const suggestedRoot = runtimeInfo?.workspaceRoot || 'E:\\WIZZ-Server\\workspaces';
 
     if (mode === 'clone') {
       els.projectDialogTitle.textContent = 'Clone repository';
       els.projectRepoInput.required = true;
       els.projectPathInput.placeholder = `${suggestedRoot}\\my-project`;
+      els.projectPathHint.textContent = 'Optional — blank uses the workspace root and project name.';
       els.projectSubmitButton.textContent = 'Clone project';
     } else if (mode === 'open') {
       els.projectDialogTitle.textContent = 'Open existing project';
       els.projectRepoInput.required = false;
       els.projectPathInput.placeholder = `${suggestedRoot}\\existing-project`;
+      els.projectPathHint.textContent = 'Required — enter the folder that already exists on this machine.';
       els.projectSubmitButton.textContent = 'Open project';
     } else {
       els.projectDialogTitle.textContent = 'New project';
       els.projectRepoInput.required = false;
       els.projectPathInput.placeholder = `${suggestedRoot}\\my-project`;
+      els.projectPathHint.textContent = 'Optional — blank uses the workspace root and project name.';
       els.projectSubmitButton.textContent = 'Create project';
     }
 
@@ -158,7 +163,7 @@
     const name = els.projectNameInput.value.trim();
     const projectPath = els.projectPathInput.value.trim();
     const repo = els.projectRepoInput.value.trim();
-    if (!name || !projectPath || (projectMode === 'clone' && !repo)) return;
+    if (!name || (projectMode === 'open' && !projectPath) || (projectMode === 'clone' && !repo)) return;
 
     const original = els.projectSubmitButton.textContent;
     els.projectSubmitButton.disabled = true;
@@ -198,6 +203,11 @@
       renderProjects();
       addActivity(projectMode === 'clone' ? 'Cloned repository' : projectMode === 'open' ? 'Opened existing workspace' : 'Created local workspace', name);
       toast(projectMode === 'clone' ? `${name} cloned` : `${name} ready`);
+
+      // A successful project action should lead straight into the real
+      // workspace. The dashboard remains visible because Code Mode is
+      // embedded in its lower panel.
+      await openProject(project.id);
     } catch (error) {
       console.error(error);
       toast(error?.message || 'Could not prepare project');
@@ -288,13 +298,8 @@
     }
   }
 
-  function setFrameNoticeVisible(visible) {
-    els.frameNotice.hidden = !visible;
-    els.frameNotice.classList.toggle('is-hidden', !visible);
-  }
-
   async function startCoding(project = null) {
-    setFrameNoticeVisible(true);
+    els.frameNotice.hidden = false;
     const heading = els.frameNotice.querySelector('h2');
     const copy = els.frameNotice.querySelector('p');
     if (heading) heading.textContent = 'Starting Code Space…';
@@ -315,28 +320,21 @@
     els.activeProjectLabel.textContent = project?.name || 'code-server';
     els.codeMode.hidden = false;
     els.homeView.classList.add('coding-active');
-    setFrameNoticeVisible(true);
+    els.frameNotice.hidden = false;
 
     // Register before changing src. A local code-server can respond quickly
     // enough for its load event to fire before a later listener is attached.
-    // The reverse proxy can keep an iframe load event pending even when
-    // code-server is already ready. Do not let that leave Code Mode covered.
-    let noticeSettled = false;
     const hideNotice = () => {
-      if (noticeSettled) return;
-      noticeSettled = true;
-      setTimeout(() => { setFrameNoticeVisible(false); }, 250);
+      setTimeout(() => { els.frameNotice.hidden = true; }, 600);
     };
     els.codeServerFrame.addEventListener('load', hideNotice, { once: true });
     els.codeServerFrame.src = target;
-    setTimeout(hideNotice, 1600);
   }
 
   function exitCodeMode() {
     els.codeMode.hidden = true;
     els.homeView.classList.remove('coding-active');
     els.codeServerFrame.src = 'about:blank';
-    setFrameNoticeVisible(true);
     activeProjectId = null;
   }
 
