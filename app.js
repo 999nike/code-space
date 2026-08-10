@@ -288,8 +288,13 @@
     }
   }
 
+  function setFrameNoticeVisible(visible) {
+    els.frameNotice.hidden = !visible;
+    els.frameNotice.classList.toggle('is-hidden', !visible);
+  }
+
   async function startCoding(project = null) {
-    els.frameNotice.hidden = false;
+    setFrameNoticeVisible(true);
     const heading = els.frameNotice.querySelector('h2');
     const copy = els.frameNotice.querySelector('p');
     if (heading) heading.textContent = 'Starting Code Space…';
@@ -310,7 +315,7 @@
     els.activeProjectLabel.textContent = project?.name || 'code-server';
     els.codeMode.hidden = false;
     els.homeView.classList.add('coding-active');
-    els.frameNotice.hidden = false;
+    setFrameNoticeVisible(true);
 
     // Register before changing src. A local code-server can respond quickly
     // enough for its load event to fire before a later listener is attached.
@@ -320,7 +325,7 @@
     const hideNotice = () => {
       if (noticeSettled) return;
       noticeSettled = true;
-      setTimeout(() => { els.frameNotice.hidden = true; }, 250);
+      setTimeout(() => { setFrameNoticeVisible(false); }, 250);
     };
     els.codeServerFrame.addEventListener('load', hideNotice, { once: true });
     els.codeServerFrame.src = target;
@@ -331,6 +336,7 @@
     els.codeMode.hidden = true;
     els.homeView.classList.remove('coding-active');
     els.codeServerFrame.src = 'about:blank';
+    setFrameNoticeVisible(true);
     activeProjectId = null;
   }
 
