@@ -67,7 +67,7 @@ browser/app shell
       +-- recent workspaces
       |
       v
-FULL-SCREEN CODE MODE
+EMBEDDED CODE PANEL
       |
       v
 code-server
@@ -92,7 +92,7 @@ The Code Space home/wrapper should use the same general visual family as Memory 
 
 The wrapper is for project selection, status and orchestration.
 
-When actual coding starts, **code-server takes over the full screen** rather than being permanently squeezed into half of the dashboard.
+When actual coding starts, **code-server appears inside the lower dashboard workspace panel** while the Code Space dashboard, project controls and status rail remain visible.
 
 ```text
 Code Space Home
@@ -102,9 +102,9 @@ Code Space Home
 Code Space starts local code-server if needed
      |
      v
-Full-screen code-server
+Embedded code-server panel
      |
-     | Exit Code Mode
+     | Hide Editor
      v
 Code Space Home
 ```
@@ -130,7 +130,7 @@ Implemented on 10 Aug 2026:
 - configurable code-server URL
 - code-server target `http://127.0.0.1:8080`
 - code-server reachability check
-- full-screen Code Mode wrapper
+- embedded code-server panel inside the dashboard
 - Open Separately fallback
 - Exit Code Mode returns to dashboard
 - Git/runtime status support
@@ -246,7 +246,7 @@ Immediate order:
 2. User presses Start Coding
 3. Node launches Ubuntu WSL code-server
 4. Detect when code-server is actually reachable
-5. Switch wrapper into full-screen code-server
+5. Render code-server inside the dashboard workspace panel
 6. User codes normally
 7. Exit Code Mode returns to dashboard
 ```
