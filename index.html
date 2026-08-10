@@ -16,90 +16,42 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-orb" aria-hidden="true"><span>&lt;/&gt;</span></div>
-        <div>
-          <p class="eyebrow">Wizz</p>
-          <h1>CODE<br>SPACE</h1>
-        </div>
+        <div><p class="eyebrow">Wizz</p><h1>CODE<br>SPACE</h1></div>
       </div>
-
       <p class="tagline">Your coding universe.<br>All your projects. One space.</p>
-
       <nav class="side-links" aria-label="Code Space navigation">
         <button class="side-link active" data-view="home"><span class="side-icon">⌂</span><span><strong>Code Space</strong><small>Projects and workspaces</small></span><b>›</b></button>
         <button class="side-link" data-view="settings"><span class="side-icon">⚙</span><span><strong>Settings</strong><small>code-server connection</small></span><b>›</b></button>
       </nav>
-
       <div class="sidebar-spacer"></div>
-
-      <div class="local-card">
-        <span class="avatar">W</span>
-        <span><strong>Wizz</strong><small>Local workspace</small></span>
-        <span class="status-dot"></span>
-      </div>
+      <div class="local-card"><span class="avatar">W</span><span><strong>Wizz</strong><small>Local workspace</small></span><span class="status-dot"></span></div>
     </aside>
 
     <section class="dashboard" id="homeView">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Code Space</p>
-          <h2>Welcome back, Wizz <span aria-hidden="true">👋</span></h2>
-          <p>Jump back in or start something new.</p>
-        </div>
-        <div class="top-actions">
-          <button class="button secondary" id="importProjectButton">Import Project</button>
-          <button class="button primary" id="newProjectButton">＋ New Project</button>
-        </div>
+        <div><p class="eyebrow">Code Space</p><h2>Welcome back, Wizz <span aria-hidden="true">👋</span></h2><p>Jump back in or start something new.</p></div>
+        <div class="top-actions"><button class="button secondary" id="importProjectButton">Import Project</button><button class="button primary" id="newProjectButton">＋ New Project</button></div>
       </header>
 
       <section class="quick-section">
-        <div class="section-heading">
-          <div><p class="eyebrow purple">Quick start</p><h3>Start coding</h3></div>
-        </div>
+        <div class="section-heading"><div><p class="eyebrow purple">Quick start</p><h3>Start coding</h3></div></div>
         <div class="quick-grid">
-          <button class="quick-card" data-action="new-project">
-            <span class="quick-icon purple-icon">＋</span>
-            <strong>New Project</strong>
-            <small>Create a real local workspace folder.</small>
-            <span class="card-action">Create</span>
-          </button>
-          <button class="quick-card" data-action="clone-project">
-            <span class="quick-icon green-icon">⑂</span>
-            <strong>Clone Repository</strong>
-            <small>Clone a Git repository into your workspace.</small>
-            <span class="card-action green-action">Clone</span>
-          </button>
-          <button class="quick-card" data-action="open-project">
-            <span class="quick-icon blue-icon">▰</span>
-            <strong>Open Existing</strong>
-            <small>Open a project already on this machine.</small>
-            <span class="card-action blue-action">Open</span>
-          </button>
-          <button class="quick-card" data-action="launch-code-server">
-            <span class="quick-icon amber-icon">⌘</span>
-            <strong>Open code-server</strong>
-            <small>Enter the full-screen coding environment.</small>
-            <span class="card-action amber-action">Launch</span>
-          </button>
+          <button class="quick-card" data-action="new-project"><span class="quick-icon purple-icon">＋</span><strong>New Project</strong><small>Create a real local workspace folder.</small><span class="card-action">Create</span></button>
+          <button class="quick-card" data-action="clone-project"><span class="quick-icon green-icon">⑂</span><strong>Clone Repository</strong><small>Clone a Git repository into your workspace.</small><span class="card-action green-action">Clone</span></button>
+          <button class="quick-card" data-action="open-project"><span class="quick-icon blue-icon">▰</span><strong>Open Existing</strong><small>Open a project already on this machine.</small><span class="card-action blue-action">Open</span></button>
+          <button class="quick-card" data-action="start-coding"><span class="quick-icon amber-icon">⌘</span><strong>Start Coding</strong><small>Start code-server if needed, then enter Code Mode.</small><span class="card-action amber-action">Start</span></button>
         </div>
       </section>
 
       <section class="workspace-section">
-        <div class="section-heading row-heading">
-          <div><p class="eyebrow purple">Recent workspaces</p><h3>Your projects</h3></div>
-          <span class="project-count" id="projectCount">0 projects</span>
-        </div>
+        <div class="section-heading row-heading"><div><p class="eyebrow purple">Recent workspaces</p><h3>Your projects</h3></div><span class="project-count" id="projectCount">0 projects</span></div>
         <div class="workspace-list" id="workspaceList"></div>
-        <div class="empty-state" id="workspaceEmpty">
-          <div class="empty-orb">&lt;/&gt;</div>
-          <h3>No projects yet</h3>
-          <p>Create, clone or open your first real local project.</p>
-          <button class="button primary" data-action="new-project">Create first project</button>
-        </div>
+        <div class="empty-state" id="workspaceEmpty"><div class="empty-orb">&lt;/&gt;</div><h3>No projects yet</h3><p>Create, clone or open your first real local project.</p><button class="button primary" data-action="new-project">Create first project</button></div>
       </section>
 
       <section class="feature-strip" aria-label="Code Space features">
         <div><span>▣</span><strong>Local first</strong><small>Your project remains on your machine.</small></div>
-        <div><span>ϟ</span><strong>code-server powered</strong><small>Use a proven browser coding engine.</small></div>
+        <div><span>ϟ</span><strong>code-server powered</strong><small>Code Space starts the coding engine for you.</small></div>
         <div><span>⑂</span><strong>Git ready</strong><small>Safe pull only when the tree is clean.</small></div>
         <div><span>⌘</span><strong>CLI ready</strong><small>AI workers can run in the same project folder.</small></div>
       </section>
@@ -112,40 +64,24 @@
         <div class="status-row"><span>code-server</span><b id="codeServerState">Not checked</b></div>
         <div class="status-row"><span>Git</span><b id="gitState">Not checked</b></div>
         <div class="status-row"><span>AI CLI</span><b>Later</b></div>
-        <button class="rail-button" id="checkServerButton">Check local runtime</button>
+        <button class="rail-button" id="checkServerButton">Refresh status</button>
       </section>
 
       <section class="rail-card">
         <div class="rail-title"><span>Code mode</span></div>
-        <p class="rail-copy">When you start coding, code-server takes over the screen. Exit Code Mode to return to this dashboard.</p>
-        <button class="button primary full" data-action="launch-code-server">Enter Code Mode</button>
+        <p class="rail-copy">One click starts code-server when needed and hands the screen over to the coding environment.</p>
+        <button class="button primary full" data-action="start-coding">Start Coding</button>
       </section>
 
-      <section class="rail-card activity-card">
-        <div class="rail-title"><span>Recent activity</span></div>
-        <div id="activityList" class="activity-list">
-          <p class="muted">Nothing yet. Start a project and activity will appear here.</p>
-        </div>
-      </section>
+      <section class="rail-card activity-card"><div class="rail-title"><span>Recent activity</span></div><div id="activityList" class="activity-list"><p class="muted">Nothing yet. Start a project and activity will appear here.</p></div></section>
     </aside>
 
     <section class="settings-view" id="settingsView" hidden>
-      <header class="topbar settings-topbar">
-        <div>
-          <p class="eyebrow">Code Space</p>
-          <h2>Settings</h2>
-          <p>Configure the local code-server that Code Space wraps.</p>
-        </div>
-      </header>
+      <header class="topbar settings-topbar"><div><p class="eyebrow">Code Space</p><h2>Settings</h2><p>Configure the local code-server that Code Space wraps.</p></div></header>
       <div class="settings-card">
-        <label>code-server address
-          <input id="codeServerUrlInput" type="url" value="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
-        </label>
-        <p>The Code Space runtime itself stays loopback-only on this machine. This address controls the code-server surface used by Code Mode.</p>
-        <div class="settings-actions">
-          <button class="button secondary" id="testSettingsButton">Test runtime</button>
-          <button class="button primary" id="saveSettingsButton">Save</button>
-        </div>
+        <label>code-server address<input id="codeServerUrlInput" type="url" value="http://127.0.0.1:8080" autocomplete="off" spellcheck="false"></label>
+        <p>The Code Space runtime stays loopback-only. Start Coding uses this address and starts code-server locally when it is not already running.</p>
+        <div class="settings-actions"><button class="button secondary" id="testSettingsButton">Refresh status</button><button class="button primary" id="saveSettingsButton">Save</button></div>
       </div>
     </section>
   </main>
@@ -153,18 +89,11 @@
   <section class="code-mode" id="codeMode" hidden>
     <header class="code-mode-bar">
       <div class="code-mode-brand"><span class="mini-orb">&lt;/&gt;</span><strong>Code Space</strong><small id="activeProjectLabel">code-server</small></div>
-      <div class="code-mode-actions">
-        <button id="openExternalButton">Open separately</button>
-        <button class="exit-button" id="exitCodeModeButton">Exit Code Mode</button>
-      </div>
+      <div class="code-mode-actions"><button id="openExternalButton">Open separately</button><button class="exit-button" id="exitCodeModeButton">Exit Code Mode</button></div>
     </header>
     <div class="code-frame-wrap">
       <iframe id="codeServerFrame" title="code-server" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="no-referrer"></iframe>
-      <div class="frame-notice" id="frameNotice">
-        <div class="empty-orb">&lt;/&gt;</div>
-        <h2>Loading code-server…</h2>
-        <p>If your browser blocks code-server inside the wrapper, use <strong>Open separately</strong>. The dashboard still remains your Code Space home.</p>
-      </div>
+      <div class="frame-notice" id="frameNotice"><div class="empty-orb">&lt;/&gt;</div><h2>Starting Code Space…</h2><p>Code Space is making sure code-server is running before opening the coding environment.</p></div>
     </div>
   </section>
 
@@ -180,7 +109,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <script src="./app.js?v=2" defer></script>
+  <script src="./app.js?v=3" defer></script>
 </body>
 </html>
