@@ -2,6 +2,7 @@
 'use strict';
 
 const http = require('node:http');
+const net = require('node:net');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -130,15 +131,30 @@ async function prepareProject(projectPath) {
 }
 
 async function isCodeServerReachable(timeout = 1800) {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    const response = await fetch(CODE_SERVER_URL, { redirect: 'manual', signal: controller.signal });
-    clearTimeout(timer);
-    return response.status > 0;
-  } catch {
-    return false;
-  }
+  return new Promise((resolve) => {
+    let parsed;
+    try {
+      parsed = new URL(CODE_SERVER_URL);
+    } catch {
+      return resolve(false);
+    }
+
+    const port = Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
+    const socket = net.createConnection({
+      host: parsed.hostname,
+      port
+    });
+
+    const finish = (reachable) => {
+      socket.destroy();
+      resolve(reachable);
+    };
+
+    socket.setTimeout(timeout);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
 }
 
 function codeServerBindAddress() {
