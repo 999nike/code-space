@@ -276,6 +276,77 @@ async function handleApi(req, res, pathname) {
   return json(res, 404, { error: 'Unknown API route' });
 }
 
+function proxyPath(pathname, search = '') {
+  const stripped = pathname.slice('/editor'.length) || '/';
+  return `${stripped.startsWith('/') ? stripped : `/${stripped}`}${search}`;
+}
+
+function proxyHeaders(headers) {
+  const next = { ...headers };
+  delete next.host;
+  delete next.connection;
+  delete next['content-length'];
+  next.host = new URL(CODE_SERVER_URL).host;
+  next['x-forwarded-host'] = `${HOST}:${PORT}`;
+  next['x-forwarded-proto'] = 'http';
+  next['x-forwarded-prefix'] = '/editor';
+  return next;
+}
+
+function rewriteProxyResponseHeaders(headers) {
+  const next = { ...headers };
+  delete next['x-frame-options'];
+  const location = next.location;
+  if (location) {
+    if (location.startsWith('/')) next.location = `/editor${location}`;
+    else if (location.startsWith(CODE_SERVER_URL)) next.location = `/editor${location.slice(CODE_SERVER_URL.length) || '/'}`;
+  }
+  const cookies = next['set-cookie'];
+  if (cookies) {
+    next['set-cookie'] = cookies.map((cookie) => cookie.replace(/Path=\/(?!editor)/i, 'Path=/editor/'));
+  }
+  return next;
+}
+
+function proxyCodeServer(req, res, url) {
+  const target = new URL(CODE_SERVER_URL);
+  const upstream = http.request({
+    protocol: target.protocol,
+    hostname: target.hostname,
+    port: target.port,
+    method: req.method,
+    path: proxyPath(url.pathname, url.search),
+    headers: proxyHeaders(req.headers)
+  }, (upstreamRes) => {
+    res.writeHead(upstreamRes.statusCode || 502, rewriteProxyResponseHeaders(upstreamRes.headers));
+    upstreamRes.pipe(res);
+  });
+  upstream.on('error', (error) => {
+    if (!res.headersSent) json(res, 502, { error: `code-server proxy failed: ${safeError(error)}` });
+    else res.destroy(error);
+  });
+  req.pipe(upstream);
+}
+
+function proxyCodeServerUpgrade(req, socket, head) {
+  const target = new URL(CODE_SERVER_URL);
+  const upstream = net.connect(Number(target.port || 80), target.hostname, () => {
+    const pathname = proxyPath(new URL(req.url, `http://${HOST}:${PORT}`).pathname, new URL(req.url, `http://${HOST}:${PORT}`).search);
+    const headers = proxyHeaders(req.headers);
+    headers.connection = 'Upgrade';
+    const lines = [`${req.method} ${pathname} HTTP/${req.httpVersion}`];
+    for (const [name, value] of Object.entries(headers)) {
+      if (Array.isArray(value)) value.forEach((item) => lines.push(`${name}: ${item}`));
+      else if (value !== undefined) lines.push(`${name}: ${value}`);
+    }
+    upstream.write(`${lines.join('\\r\\n')}\\r\\n\\r\\n`);
+    if (head.length) upstream.write(head);
+    socket.pipe(upstream).pipe(socket);
+  });
+  upstream.on('error', () => socket.destroy());
+  socket.on('error', () => upstream.destroy());
+}
+
 async function serveStatic(req, res, pathname) {
   const requested = pathname === '/' ? '/index.html' : pathname;
   const filePath = path.resolve(APP_ROOT, `.${requested}`);
@@ -302,11 +373,20 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${HOST}:${PORT}`);
     if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url.pathname);
+    if (url.pathname === '/editor' || url.pathname.startsWith('/editor/')) return proxyCodeServer(req, res, url);
     return await serveStatic(req, res, decodeURIComponent(url.pathname));
   } catch (error) {
     console.error('[code-space]', error);
     return json(res, 400, { error: safeError(error) });
   }
+});
+
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url, `http://${HOST}:${PORT}`);
+  if (url.pathname === '/editor' || url.pathname.startsWith('/editor/')) {
+    return proxyCodeServerUpgrade(req, socket, head);
+  }
+  socket.destroy();
 });
 
 server.listen(PORT, HOST, async () => {
