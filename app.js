@@ -5,9 +5,7 @@
   const SETTINGS_KEY = 'code-space-settings-v1';
   const ACTIVITY_KEY = 'code-space-activity-v1';
 
-  const defaults = {
-    codeServerUrl: 'http://127.0.0.1:8080'
-  };
+  const defaults = { codeServerUrl: 'http://127.0.0.1:8080' };
 
   const els = {
     homeView: document.getElementById('homeView'),
@@ -40,6 +38,7 @@
   let activeProjectId = null;
   let runtimeInfo = null;
   let toastTimer;
+  let startingCodeServer = false;
 
   function load(key, fallback) {
     try {
@@ -72,10 +71,7 @@
     const response = await fetch(path, {
       cache: 'no-store',
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      }
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error || `Code Space runtime returned HTTP ${response.status}`);
@@ -108,10 +104,7 @@
         <article class="workspace-row" data-project-id="${escapeAttr(project.id)}">
           <div class="workspace-main">
             <span class="project-icon">&lt;/&gt;</span>
-            <div>
-              <strong>${escapeHtml(project.name)}</strong>
-              <small>${escapeHtml(project.path)}</small>
-            </div>
+            <div><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.path)}</small></div>
           </div>
           <div class="workspace-meta">${project.repo ? escapeHtml(shortRepo(project.repo)) : 'Local workspace'}</div>
           <div class="workspace-state ${stateClass}">● ${escapeHtml(state)}</div>
@@ -130,10 +123,7 @@
       return;
     }
     els.activityList.innerHTML = items.slice(0, 5).map((item) => `
-      <div class="activity-item">
-        <strong>${escapeHtml(item.text)}</strong>
-        <small>${escapeHtml(item.detail || relativeTime(item.at))}</small>
-      </div>`).join('');
+      <div class="activity-item"><strong>${escapeHtml(item.text)}</strong><small>${escapeHtml(item.detail || relativeTime(item.at))}</small></div>`).join('');
   }
 
   function openProjectDialog(mode) {
@@ -241,15 +231,13 @@
       });
       project.lastOpenedAt = new Date().toISOString();
       project.lastGitState = prepared.isGit
-        ? prepared.clean === false
-          ? 'Changes'
-          : 'Clean'
+        ? prepared.clean === false ? 'Changes' : 'Clean'
         : 'Ready';
       save(PROJECTS_KEY, items);
       renderProjects();
       activeProjectId = id;
       addActivity(prepared.pulled ? 'Pulled latest changes' : 'Opened workspace', prepared.message || project.name);
-      launchCodeServer(project);
+      await startCoding(project);
     } catch (error) {
       console.error(error);
       project.lastGitState = 'Error';
@@ -260,7 +248,7 @@
   }
 
   function normalizedCodeServerUrl() {
-    return String(settings().codeServerUrl || runtimeInfo?.codeServerUrl || defaults.codeServerUrl).trim().replace(/\/+$/, '');
+    return String(runtimeInfo?.codeServerUrl || settings().codeServerUrl || defaults.codeServerUrl).trim().replace(/\/+$/, '');
   }
 
   function projectCodeUrl(project) {
@@ -268,6 +256,43 @@
     if (!project?.path) return base;
     const params = new URLSearchParams({ folder: project.path });
     return `${base}/?${params.toString()}`;
+  }
+
+  async function ensureCodeServer() {
+    if (startingCodeServer) return runtimeInfo;
+    startingCodeServer = true;
+    els.codeServerState.textContent = 'Starting…';
+    els.codeServerState.className = '';
+    try {
+      const result = await api('/api/code-server/start', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      runtimeInfo = { ...(runtimeInfo || {}), codeServer: true, codeServerUrl: result.codeServerUrl || normalizedCodeServerUrl() };
+      els.codeServerState.textContent = 'Running';
+      els.codeServerState.className = 'ready';
+      if (result.started) addActivity('Started code-server', runtimeInfo.codeServerUrl);
+      return runtimeInfo;
+    } finally {
+      startingCodeServer = false;
+    }
+  }
+
+  async function startCoding(project = null) {
+    els.frameNotice.hidden = false;
+    const heading = els.frameNotice.querySelector('h2');
+    const copy = els.frameNotice.querySelector('p');
+    if (heading) heading.textContent = 'Starting Code Space…';
+    if (copy) copy.textContent = 'Starting code-server and preparing the coding environment.';
+
+    try {
+      await ensureCodeServer();
+      launchCodeServer(project);
+    } catch (error) {
+      console.error(error);
+      toast(error?.message || 'Could not start code-server');
+      await checkRuntime({ quiet: true });
+    }
   }
 
   function launchCodeServer(project = null) {
@@ -300,7 +325,7 @@
       runtimeInfo = await api('/api/status');
       els.runtimeState.textContent = 'Ready';
       els.runtimeState.className = 'ready';
-      els.codeServerState.textContent = runtimeInfo.codeServer ? 'Running' : 'Offline';
+      els.codeServerState.textContent = runtimeInfo.codeServer ? 'Running' : 'Stopped';
       els.codeServerState.className = runtimeInfo.codeServer ? 'ready' : '';
       els.gitState.textContent = runtimeInfo.git ? 'Ready' : 'Unavailable';
       els.gitState.className = runtimeInfo.git ? 'ready' : '';
@@ -308,7 +333,7 @@
       if (runtimeInfo.codeServerUrl && localStorage.getItem(SETTINGS_KEY) === null) {
         els.codeServerUrlInput.value = runtimeInfo.codeServerUrl;
       }
-      if (!quiet) toast(runtimeInfo.codeServer ? 'Local runtime and code-server are ready' : 'Runtime ready; code-server is offline');
+      if (!quiet) toast(runtimeInfo.codeServer ? 'Code Space is ready' : 'Runtime ready — Start Coding will launch code-server');
       return runtimeInfo;
     } catch (error) {
       console.debug('Code Space runtime check failed:', error);
@@ -386,7 +411,7 @@
     if (action === 'new-project') openProjectDialog('new');
     if (action === 'clone-project') openProjectDialog('clone');
     if (action === 'open-project') openProjectDialog('open');
-    if (action === 'launch-code-server') launchCodeServer();
+    if (action === 'start-coding') startCoding();
 
     const view = event.target.closest('[data-view]')?.dataset.view;
     if (view) switchView(view);
