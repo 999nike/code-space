@@ -1,6 +1,6 @@
 # Code Space V2 Product Ledger
 
-**Updated:** 10 Aug 2026
+**Updated:** 10 Aug 2026 — 21:25 UK
 
 This is the active build / handoff ledger for:
 
@@ -97,7 +97,10 @@ When actual coding starts, **code-server takes over the full screen** rather tha
 ```text
 Code Space Home
      |
-     | Open project / Enter Code Mode
+     | Start Coding / Open project
+     v
+Code Space starts local code-server if needed
+     |
      v
 Full-screen code-server
      |
@@ -106,69 +109,161 @@ Full-screen code-server
 Code Space Home
 ```
 
-This gives code-server maximum screen space on desktop, Dex, laptop and mobile while preserving the Code Space product shell around it.
+Target user experience: Code Space should be a one-click starter. The user should not need to manually start a terminal and code-server for normal use once the runtime path is complete.
 
 ---
 
 # CURRENT IMPLEMENTED STATE
 
-Initial Code Space shell committed on 10 Aug 2026.
-
-Implemented:
+Implemented on 10 Aug 2026:
 
 - responsive Code Space wrapper/dashboard
 - Quick Start cards
-- New Project workspace registration
-- Clone Repository workspace registration
-- Open Existing workspace registration
-- local browser persistence for project shortcuts
+- New Project flow
+- Clone Repository flow
+- Open Existing flow
 - recent workspace list
 - recent activity list
+- local Code Space Node runtime on `http://127.0.0.1:8090`
+- approved workspace root `E:\WIZZ-Server\workspaces`
+- real local project listing/runtime operations started
 - configurable code-server URL
-- default local address `http://127.0.0.1:8080`
+- code-server target `http://127.0.0.1:8080`
 - code-server reachability check
-- full-screen Code Mode
-- code-server iframe launch path
+- full-screen Code Mode wrapper
 - Open Separately fallback
 - Exit Code Mode returns to dashboard
-- README documents current architecture
+- Git/runtime status support
+- one-click Start Coding route now attempts to launch code-server automatically
 
-Important limitation:
+### Local coding engine established
 
-The current browser shell only **records** project names, paths and repository URLs. It does not yet have a privileged local runtime capable of creating folders, cloning repositories, running Git or starting processes.
+The HP Windows machine now has:
 
-That boundary is deliberate. Browser JavaScript alone should not pretend it can safely manipulate arbitrary local folders.
+```text
+Windows 11
+  |
+  +-- WSL2
+       |
+       +-- Ubuntu 26.04 LTS
+            user: wizz
+            |
+            +-- code-server 4.132.0
+```
+
+Verified manually from Windows PowerShell:
+
+```text
+wsl -d Ubuntu -- bash -lc "command -v code-server; code-server --version"
+/usr/bin/code-server
+4.132.0
+```
+
+Verified manual launch command:
+
+```text
+wsl -d Ubuntu -- bash -lc "code-server --bind-addr 0.0.0.0:8080"
+```
+
+When that command remains running, Windows can reach code-server at:
+
+```text
+http://127.0.0.1:8080
+```
+
+and `curl.exe -I http://127.0.0.1:8080` returned HTTP 302 to `./login`, proving the Windows-to-WSL route works.
+
+### Current integration state — NEARLY WORKING
+
+The remaining problem is specifically the automatic launch/handoff from the Code Space Node runtime to WSL code-server.
+
+The previous `cmd.exe` launcher layer was removed. Current `server.js` now launches WSL directly using the proven command model:
+
+```text
+wsl.exe -d Ubuntu -- bash -lc "exec code-server --bind-addr 0.0.0.0:8080"
+```
+
+Latest integration commit before this ledger update:
+
+```text
+0d96a46
+Direct WSL launch from server.js
+```
+
+Observed current behaviour after that patch:
+
+- Code Space runtime starts successfully on port 8090.
+- Start Coding enters the Code Mode loading screen.
+- a WSL/code-server console is visibly spawned.
+- that console reports code-server 4.132.0 running and listening on `0.0.0.0:8080`.
+- Code Space still remains on `Starting Code Space...` instead of completing the transition.
+
+This is significant progress: **automatic process launch is now visibly occurring.**
+
+Do not reinstall WSL or code-server again. The engine itself is proven working.
+
+Next debugging target is only the readiness/reachability handoff between the spawned WSL process and `server.js`.
 
 ---
 
-# NEXT BUILD TARGET — LOCAL RUNTIME
+# CURRENT MACHINE SERVICES — KEEP SEPARATE
 
-The next meaningful layer is a small local Code Space runtime/helper that gives the browser shell controlled access to approved workspace operations.
+The HP also runs unrelated existing services. Do not confuse these with Code Space or replace them.
 
-Target capabilities, one at a time:
+Manual restart commands currently used by owner:
 
-```text
-1. inspect configured workspace root
-2. list projects
-3. create project folder
-4. register/open existing approved folder
-5. clone Git repository into workspace root
-6. check Git status
-7. safe pull only when working tree is clean
-8. launch/open code-server against selected folder
+```powershell
+cd E:\WIZZ-Server
+caddy run --config Caddyfile
 ```
 
-Do not start with autonomous write/commit/push behaviour.
+Media server:
 
-### Workspace root
-
-A likely development root on the HP machine is:
-
-```text
-E:\WIZZ-Server\workspaces\
+```powershell
+cd E:\WIZZ-Server\media
+npx.cmd http-server -p 8081 -a 127.0.0.1
 ```
 
-The runtime should eventually be configurable, but all file operations must remain inside explicitly approved workspace roots.
+Code Space runtime:
+
+```powershell
+cd E:\WIZZ-Server\workspaces\code-space
+node server.js
+```
+
+These are currently manually managed during development.
+
+---
+
+# NEXT BUILD TARGET
+
+Finish the one-click coding startup path before adding more features.
+
+Immediate order:
+
+```text
+1. Start Code Space runtime on 8090
+2. User presses Start Coding
+3. Node launches Ubuntu WSL code-server
+4. Detect when code-server is actually reachable
+5. Switch wrapper into full-screen code-server
+6. User codes normally
+7. Exit Code Mode returns to dashboard
+```
+
+Current debugging priority:
+
+- inspect why `server.js` readiness detection does not complete even though the spawned code-server console reports it is listening
+- capture launcher stdout/stderr if needed
+- do not change the proven Ubuntu/code-server installation unless evidence requires it
+
+After this loop is proven:
+
+1. project listing/create-folder
+2. clone/open flows
+3. Git status + safe pull
+4. one AI CLI inside the same project working directory
+5. minimal Connector integration only later
 
 ---
 
@@ -195,13 +290,6 @@ open workspace
     -> surface status to user
 ```
 
-Later stages may add controlled:
-
-- diff
-- commit
-- push
-- branch creation
-
 Do not silently commit or push code in the first build.
 
 ---
@@ -211,8 +299,6 @@ Do not silently commit or push code in the first build.
 AI should live **inside the coding environment**, not as a fake browser chat that receives pasted code.
 
 The important architecture is that editor, terminal, Git and AI CLI all work against the same real project folder.
-
-Possible workers later include whichever CLI/API tools actually support the workflow at the time.
 
 Concept:
 
@@ -237,8 +323,6 @@ Do not add Memory Space UI, memory tools, Memory Bridge code or cross-app permis
 
 Later, applications should be able to connect through the minimal Connector layer.
 
-The intended future principle is:
-
 ```text
 Apps work independently first.
 Connector links them later with the smallest useful permission contract.
@@ -255,26 +339,12 @@ Do not:
 - modify `999nike/memory-app`
 - move existing bridge functionality
 - rebuild VS Code/editor functionality
+- reinstall WSL/code-server merely because the automatic handoff fails
+- disturb Caddy/media services while debugging Code Space
 - build a fake chat-based grep IDE
-- dump whole repositories into model context as the core workflow
-- force Memory Space into Code Space before the coding environment works independently
+- force Memory Space into Code Space before Code Space works independently
 - build Graph or Connector features in this repo
 - add dangerous automatic Git push behaviour before status/diff safety exists
-- pretend browser-only code can manipulate arbitrary local files without a local runtime
-
----
-
-# IMMEDIATE WORK ORDER
-
-1. Run/deploy the current Code Space shell and inspect the real UI.
-2. Adjust the visual shell against the approved Code Space concept image.
-3. Verify full-screen Code Mode against the user's existing local code-server.
-4. Decide the smallest local runtime API needed to manage `E:\WIZZ-Server\workspaces` safely.
-5. Implement project listing / create-folder first.
-6. Add clone/open flows.
-7. Add Git status + safe pull.
-8. Add one AI CLI inside the same project working directory.
-9. Only after the coding loop is useful, consider minimal Connector integration.
 
 ---
 
