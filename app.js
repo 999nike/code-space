@@ -24,6 +24,9 @@
     projectPathInput: document.getElementById('projectPathInput'),
     projectRepoInput: document.getElementById('projectRepoInput'),
     repoField: document.getElementById('repoField'),
+    projectSubmitButton: document.getElementById('projectSubmitButton'),
+    runtimeState: document.getElementById('runtimeState'),
+    gitState: document.getElementById('gitState'),
     codeServerState: document.getElementById('codeServerState'),
     codeServerUrlInput: document.getElementById('codeServerUrlInput'),
     codeMode: document.getElementById('codeMode'),
@@ -35,6 +38,7 @@
 
   let projectMode = 'new';
   let activeProjectId = null;
+  let runtimeInfo = null;
   let toastTimer;
 
   function load(key, fallback) {
@@ -64,6 +68,20 @@
     return Array.isArray(value) ? value : [];
   }
 
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      cache: 'no-store',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || `Code Space runtime returned HTTP ${response.status}`);
+    return data;
+  }
+
   function addActivity(text, detail = '') {
     const items = activity();
     items.unshift({ id: crypto.randomUUID?.() || String(Date.now()), text, detail, at: new Date().toISOString() });
@@ -75,6 +93,7 @@
     renderProjects();
     renderActivity();
     els.codeServerUrlInput.value = settings().codeServerUrl;
+    checkRuntime({ quiet: true });
   }
 
   function renderProjects() {
@@ -82,22 +101,26 @@
     els.projectCount.textContent = `${items.length} ${items.length === 1 ? 'project' : 'projects'}`;
     els.workspaceEmpty.hidden = items.length > 0;
     els.workspaceList.hidden = items.length === 0;
-    els.workspaceList.innerHTML = items.map((project) => `
-      <article class="workspace-row" data-project-id="${escapeAttr(project.id)}">
-        <div class="workspace-main">
-          <span class="project-icon">&lt;/&gt;</span>
-          <div>
-            <strong>${escapeHtml(project.name)}</strong>
-            <small>${escapeHtml(project.path)}</small>
+    els.workspaceList.innerHTML = items.map((project) => {
+      const state = project.lastGitState || 'Ready';
+      const stateClass = state.toLowerCase().includes('change') ? 'changes' : state.toLowerCase().includes('error') ? 'error' : '';
+      return `
+        <article class="workspace-row" data-project-id="${escapeAttr(project.id)}">
+          <div class="workspace-main">
+            <span class="project-icon">&lt;/&gt;</span>
+            <div>
+              <strong>${escapeHtml(project.name)}</strong>
+              <small>${escapeHtml(project.path)}</small>
+            </div>
           </div>
-        </div>
-        <div class="workspace-meta">${project.repo ? escapeHtml(shortRepo(project.repo)) : 'Local workspace'}</div>
-        <div class="workspace-state">● Ready</div>
-        <div class="workspace-actions">
-          <button type="button" data-remove-project="${escapeAttr(project.id)}">Remove</button>
-          <button type="button" class="open" data-open-project="${escapeAttr(project.id)}">Open</button>
-        </div>
-      </article>`).join('');
+          <div class="workspace-meta">${project.repo ? escapeHtml(shortRepo(project.repo)) : 'Local workspace'}</div>
+          <div class="workspace-state ${stateClass}">● ${escapeHtml(state)}</div>
+          <div class="workspace-actions">
+            <button type="button" data-remove-project="${escapeAttr(project.id)}">Remove</button>
+            <button type="button" class="open" data-open-project="${escapeAttr(project.id)}">Open</button>
+          </div>
+        </article>`;
+    }).join('');
   }
 
   function renderActivity() {
@@ -117,44 +140,81 @@
     projectMode = mode;
     els.projectForm.reset();
     els.repoField.hidden = mode === 'open';
+    const suggestedRoot = runtimeInfo?.workspaceRoot || 'E:\\WIZZ-Server\\workspaces';
+
     if (mode === 'clone') {
       els.projectDialogTitle.textContent = 'Clone repository';
       els.projectRepoInput.required = true;
-      els.projectNameInput.placeholder = 'Project name';
+      els.projectPathInput.placeholder = `${suggestedRoot}\\my-project`;
+      els.projectSubmitButton.textContent = 'Clone project';
     } else if (mode === 'open') {
       els.projectDialogTitle.textContent = 'Open existing project';
       els.projectRepoInput.required = false;
+      els.projectPathInput.placeholder = `${suggestedRoot}\\existing-project`;
+      els.projectSubmitButton.textContent = 'Open project';
     } else {
       els.projectDialogTitle.textContent = 'New project';
       els.projectRepoInput.required = false;
+      els.projectPathInput.placeholder = `${suggestedRoot}\\my-project`;
+      els.projectSubmitButton.textContent = 'Create project';
     }
+
     els.projectDialog.showModal();
     requestAnimationFrame(() => els.projectNameInput.focus());
   }
 
-  function submitProject(event) {
+  async function submitProject(event) {
     event.preventDefault();
     const name = els.projectNameInput.value.trim();
-    const path = els.projectPathInput.value.trim();
+    const projectPath = els.projectPathInput.value.trim();
     const repo = els.projectRepoInput.value.trim();
-    if (!name || !path || (projectMode === 'clone' && !repo)) return;
+    if (!name || !projectPath || (projectMode === 'clone' && !repo)) return;
 
-    const items = projects();
-    const project = {
-      id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name,
-      path,
-      repo: projectMode === 'open' ? '' : repo,
-      mode: projectMode,
-      createdAt: new Date().toISOString(),
-      lastOpenedAt: null
-    };
-    items.unshift(project);
-    save(PROJECTS_KEY, items);
-    els.projectDialog.close();
-    renderProjects();
-    addActivity(projectMode === 'clone' ? 'Registered repository' : projectMode === 'open' ? 'Opened existing workspace' : 'Created workspace', name);
-    toast(`${name} added to Code Space`);
+    const original = els.projectSubmitButton.textContent;
+    els.projectSubmitButton.disabled = true;
+    els.projectSubmitButton.textContent = projectMode === 'clone' ? 'Cloning…' : projectMode === 'open' ? 'Opening…' : 'Creating…';
+
+    try {
+      const endpoint = projectMode === 'clone'
+        ? '/api/projects/clone'
+        : projectMode === 'open'
+          ? '/api/projects/open'
+          : '/api/projects/new';
+
+      const result = await api(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ name, path: projectPath, repo })
+      });
+
+      const items = projects();
+      const resolvedPath = result.path || projectPath;
+      const existing = items.find((item) => item.path.toLowerCase() === resolvedPath.toLowerCase());
+      const project = existing || {
+        id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        createdAt: new Date().toISOString()
+      };
+      Object.assign(project, {
+        name,
+        path: resolvedPath,
+        repo: projectMode === 'open' ? '' : repo,
+        mode: projectMode,
+        lastOpenedAt: project.lastOpenedAt || null,
+        lastGitState: result.git?.clean === false ? 'Changes' : 'Ready'
+      });
+      if (!existing) items.unshift(project);
+      save(PROJECTS_KEY, items);
+
+      els.projectDialog.close();
+      renderProjects();
+      addActivity(projectMode === 'clone' ? 'Cloned repository' : projectMode === 'open' ? 'Opened existing workspace' : 'Created local workspace', name);
+      toast(projectMode === 'clone' ? `${name} cloned` : `${name} ready`);
+    } catch (error) {
+      console.error(error);
+      toast(error?.message || 'Could not prepare project');
+    } finally {
+      els.projectSubmitButton.disabled = false;
+      els.projectSubmitButton.textContent = original;
+    }
   }
 
   function removeProject(id) {
@@ -168,19 +228,39 @@
     toast('Workspace removed');
   }
 
-  function openProject(id) {
+  async function openProject(id) {
     const items = projects();
     const project = items.find((item) => item.id === id);
     if (!project) return;
-    project.lastOpenedAt = new Date().toISOString();
-    save(PROJECTS_KEY, items);
-    activeProjectId = id;
-    addActivity('Opened workspace', project.name);
-    launchCodeServer(project);
+
+    toast(`Preparing ${project.name}…`);
+    try {
+      const prepared = await api('/api/projects/prepare', {
+        method: 'POST',
+        body: JSON.stringify({ path: project.path })
+      });
+      project.lastOpenedAt = new Date().toISOString();
+      project.lastGitState = prepared.isGit
+        ? prepared.clean === false
+          ? 'Changes'
+          : 'Clean'
+        : 'Ready';
+      save(PROJECTS_KEY, items);
+      renderProjects();
+      activeProjectId = id;
+      addActivity(prepared.pulled ? 'Pulled latest changes' : 'Opened workspace', prepared.message || project.name);
+      launchCodeServer(project);
+    } catch (error) {
+      console.error(error);
+      project.lastGitState = 'Error';
+      save(PROJECTS_KEY, items);
+      renderProjects();
+      toast(error?.message || 'Could not open project');
+    }
   }
 
   function normalizedCodeServerUrl() {
-    return String(settings().codeServerUrl || defaults.codeServerUrl).trim().replace(/\/+$/, '');
+    return String(settings().codeServerUrl || runtimeInfo?.codeServerUrl || defaults.codeServerUrl).trim().replace(/\/+$/, '');
   }
 
   function projectCodeUrl(project) {
@@ -212,20 +292,34 @@
     activeProjectId = null;
   }
 
-  async function checkCodeServer() {
-    const url = normalizedCodeServerUrl();
+  async function checkRuntime({ quiet = false } = {}) {
+    els.runtimeState.textContent = 'Checking…';
     els.codeServerState.textContent = 'Checking…';
-    els.codeServerState.className = '';
+    els.gitState.textContent = 'Checking…';
     try {
-      await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-      els.codeServerState.textContent = 'Reachable';
-      els.codeServerState.className = 'ready';
-      toast('code-server responded');
+      runtimeInfo = await api('/api/status');
+      els.runtimeState.textContent = 'Ready';
+      els.runtimeState.className = 'ready';
+      els.codeServerState.textContent = runtimeInfo.codeServer ? 'Running' : 'Offline';
+      els.codeServerState.className = runtimeInfo.codeServer ? 'ready' : '';
+      els.gitState.textContent = runtimeInfo.git ? 'Ready' : 'Unavailable';
+      els.gitState.className = runtimeInfo.git ? 'ready' : '';
+
+      if (runtimeInfo.codeServerUrl && localStorage.getItem(SETTINGS_KEY) === null) {
+        els.codeServerUrlInput.value = runtimeInfo.codeServerUrl;
+      }
+      if (!quiet) toast(runtimeInfo.codeServer ? 'Local runtime and code-server are ready' : 'Runtime ready; code-server is offline');
+      return runtimeInfo;
     } catch (error) {
-      console.debug('code-server check failed:', error);
-      els.codeServerState.textContent = 'Offline';
+      console.debug('Code Space runtime check failed:', error);
+      els.runtimeState.textContent = 'Offline';
+      els.runtimeState.className = '';
+      els.codeServerState.textContent = 'Unknown';
       els.codeServerState.className = '';
-      toast('Could not reach code-server');
+      els.gitState.textContent = 'Unknown';
+      els.gitState.className = '';
+      if (!quiet) toast('Start Code Space with node server.js');
+      return null;
     }
   }
 
@@ -271,7 +365,7 @@
     clearTimeout(toastTimer);
     els.toast.textContent = message;
     els.toast.classList.add('show');
-    toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2400);
+    toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2800);
   }
 
   function escapeHtml(value) {
@@ -308,8 +402,8 @@
 
   document.getElementById('newProjectButton').addEventListener('click', () => openProjectDialog('new'));
   document.getElementById('importProjectButton').addEventListener('click', () => openProjectDialog('open'));
-  document.getElementById('checkServerButton').addEventListener('click', checkCodeServer);
-  document.getElementById('testSettingsButton').addEventListener('click', checkCodeServer);
+  document.getElementById('checkServerButton').addEventListener('click', () => checkRuntime());
+  document.getElementById('testSettingsButton').addEventListener('click', () => checkRuntime());
   document.getElementById('saveSettingsButton').addEventListener('click', saveSettings);
   document.getElementById('exitCodeModeButton').addEventListener('click', exitCodeMode);
   document.getElementById('openExternalButton').addEventListener('click', openExternal);
