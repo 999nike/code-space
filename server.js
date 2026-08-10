@@ -13,7 +13,7 @@ const HOST = '127.0.0.1';
 const PORT = Number(process.env.CODE_SPACE_PORT || 8090);
 const ROOT = path.resolve(process.env.CODE_SPACE_WORKSPACES || 'E:\\WIZZ-Server\\workspaces');
 const CODE_SERVER_URL = String(process.env.CODE_SERVER_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
-const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || path.join(__dirname, 'start-code-server.cmd')).trim();
+const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || 'code-server').trim();
 const APP_ROOT = __dirname;
 const MAX_BODY = 128 * 1024;
 let codeServerProcess = null;
@@ -151,19 +151,20 @@ function codeServerBindAddress() {
 }
 
 function startDetachedCodeServer() {
-  const args = ['--bind-addr', codeServerBindAddress()];
   let child;
 
   if (process.platform === 'win32') {
-    const quotedCommand = `"${CODE_SERVER_COMMAND.replaceAll('"', '""')}" --bind-addr "${codeServerBindAddress()}"`;
-    child = spawn('cmd.exe', ['/d', '/s', '/c', quotedCommand], {
-      cwd: ROOT,
+    child = spawn('wsl.exe', [
+      '-d', 'Ubuntu',
+      '--', 'bash', '-lc',
+      'exec code-server --bind-addr 0.0.0.0:8080'
+    ], {
       windowsHide: true,
       detached: true,
       stdio: 'ignore'
     });
   } else {
-    child = spawn(CODE_SERVER_COMMAND, args, {
+    child = spawn(CODE_SERVER_COMMAND, ['--bind-addr', codeServerBindAddress()], {
       cwd: ROOT,
       detached: true,
       stdio: 'ignore'
@@ -184,7 +185,7 @@ async function ensureCodeServer() {
   }
 
   const pid = startDetachedCodeServer();
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     if (await isCodeServerReachable(1200)) {
@@ -297,5 +298,5 @@ server.listen(PORT, HOST, async () => {
   console.log(`Code Space: http://${HOST}:${PORT}`);
   console.log(`Workspaces: ${ROOT}`);
   console.log(`code-server: ${CODE_SERVER_URL}`);
-  if (process.platform === 'win32') console.log('code-server engine: Ubuntu WSL');
+  console.log(`code-server engine: ${process.platform === 'win32' ? 'Ubuntu WSL' : CODE_SERVER_COMMAND}`);
 });
