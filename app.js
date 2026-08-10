@@ -251,10 +251,20 @@
     return String(runtimeInfo?.codeServerUrl || settings().codeServerUrl || defaults.codeServerUrl).trim().replace(/\/+$/, '');
   }
 
+  function codeServerFolderPath(value) {
+    const raw = String(value || '').trim();
+    if (!raw || runtimeInfo?.codeServerPlatform !== 'wsl') return raw;
+    const match = raw.match(/^([A-Za-z]):[\\/](.*)$/);
+    if (!match) return raw.replaceAll('\\', '/');
+    const drive = match[1].toLowerCase();
+    const rest = match[2].replaceAll('\\', '/');
+    return `/mnt/${drive}/${rest}`;
+  }
+
   function projectCodeUrl(project) {
     const base = normalizedCodeServerUrl();
     if (!project?.path) return base;
-    const params = new URLSearchParams({ folder: project.path });
+    const params = new URLSearchParams({ folder: codeServerFolderPath(project.path) });
     return `${base}/?${params.toString()}`;
   }
 
