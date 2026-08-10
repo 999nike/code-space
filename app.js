@@ -261,9 +261,9 @@
     return `/mnt/${drive}/${rest}`;
   }
 
-  function projectCodeUrl(project) {
-    const base = normalizedCodeServerUrl();
-    if (!project?.path) return base;
+  function projectCodeUrl(project, { embedded = true } = {}) {
+    const base = embedded ? '/editor' : normalizedCodeServerUrl();
+    if (!project?.path) return `${base}/`;
     const params = new URLSearchParams({ folder: codeServerFolderPath(project.path) });
     return `${base}/?${params.toString()}`;
   }
@@ -309,7 +309,7 @@
     const target = projectCodeUrl(project);
     els.activeProjectLabel.textContent = project?.name || 'code-server';
     els.codeMode.hidden = false;
-    document.body.style.overflow = 'hidden';
+    els.homeView.classList.add('coding-active');
     els.frameNotice.hidden = false;
     els.codeServerFrame.src = target;
 
@@ -322,7 +322,7 @@
 
   function exitCodeMode() {
     els.codeMode.hidden = true;
-    document.body.style.overflow = '';
+    els.homeView.classList.remove('coding-active');
     els.codeServerFrame.src = 'about:blank';
     activeProjectId = null;
   }
@@ -379,7 +379,7 @@
 
   function openExternal() {
     const project = projects().find((item) => item.id === activeProjectId) || null;
-    window.open(projectCodeUrl(project), '_blank', 'noopener,noreferrer');
+    window.open(projectCodeUrl(project, { embedded: false }), '_blank', 'noopener,noreferrer');
   }
 
   function shortRepo(value) {
