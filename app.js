@@ -314,11 +314,17 @@
 
     // Register before changing src. A local code-server can respond quickly
     // enough for its load event to fire before a later listener is attached.
+    // The reverse proxy can keep an iframe load event pending even when
+    // code-server is already ready. Do not let that leave Code Mode covered.
+    let noticeSettled = false;
     const hideNotice = () => {
-      setTimeout(() => { els.frameNotice.hidden = true; }, 600);
+      if (noticeSettled) return;
+      noticeSettled = true;
+      setTimeout(() => { els.frameNotice.hidden = true; }, 250);
     };
     els.codeServerFrame.addEventListener('load', hideNotice, { once: true });
     els.codeServerFrame.src = target;
+    setTimeout(hideNotice, 1600);
   }
 
   function exitCodeMode() {
