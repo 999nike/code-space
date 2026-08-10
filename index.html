@@ -59,19 +59,19 @@
           <button class="quick-card" data-action="new-project">
             <span class="quick-icon purple-icon">＋</span>
             <strong>New Project</strong>
-            <small>Create a fresh local workspace.</small>
+            <small>Create a real local workspace folder.</small>
             <span class="card-action">Create</span>
           </button>
           <button class="quick-card" data-action="clone-project">
             <span class="quick-icon green-icon">⑂</span>
             <strong>Clone Repository</strong>
-            <small>Bring in a Git repository.</small>
+            <small>Clone a Git repository into your workspace.</small>
             <span class="card-action green-action">Clone</span>
           </button>
           <button class="quick-card" data-action="open-project">
             <span class="quick-icon blue-icon">▰</span>
             <strong>Open Existing</strong>
-            <small>Register a project already on this machine.</small>
+            <small>Open a project already on this machine.</small>
             <span class="card-action blue-action">Open</span>
           </button>
           <button class="quick-card" data-action="launch-code-server">
@@ -92,7 +92,7 @@
         <div class="empty-state" id="workspaceEmpty">
           <div class="empty-orb">&lt;/&gt;</div>
           <h3>No projects yet</h3>
-          <p>Create or register your first project. Code Space will remember the workspace here.</p>
+          <p>Create, clone or open your first real local project.</p>
           <button class="button primary" data-action="new-project">Create first project</button>
         </div>
       </section>
@@ -100,7 +100,7 @@
       <section class="feature-strip" aria-label="Code Space features">
         <div><span>▣</span><strong>Local first</strong><small>Your project remains on your machine.</small></div>
         <div><span>ϟ</span><strong>code-server powered</strong><small>Use a proven browser coding engine.</small></div>
-        <div><span>⑂</span><strong>Git ready</strong><small>Project status now, safer actions later.</small></div>
+        <div><span>⑂</span><strong>Git ready</strong><small>Safe pull only when the tree is clean.</small></div>
         <div><span>⌘</span><strong>CLI ready</strong><small>AI workers can run in the same project folder.</small></div>
       </section>
     </section>
@@ -108,11 +108,11 @@
     <aside class="right-rail" id="rightRail">
       <section class="rail-card">
         <div class="rail-title"><span>System status</span><b class="online-pill">● Local</b></div>
+        <div class="status-row"><span>Code Space runtime</span><b id="runtimeState">Not checked</b></div>
         <div class="status-row"><span>code-server</span><b id="codeServerState">Not checked</b></div>
-        <div class="status-row"><span>Workspace shell</span><b class="ready">Ready</b></div>
-        <div class="status-row"><span>Git</span><b>Planned</b></div>
-        <div class="status-row"><span>AI CLI</span><b>Planned</b></div>
-        <button class="rail-button" id="checkServerButton">Check code-server</button>
+        <div class="status-row"><span>Git</span><b id="gitState">Not checked</b></div>
+        <div class="status-row"><span>AI CLI</span><b>Later</b></div>
+        <button class="rail-button" id="checkServerButton">Check local runtime</button>
       </section>
 
       <section class="rail-card">
@@ -141,9 +141,9 @@
         <label>code-server address
           <input id="codeServerUrlInput" type="url" value="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
         </label>
-        <p>For the first build this is simply the address of your existing local code-server. Code Space does not install or modify code-server.</p>
+        <p>The Code Space runtime itself stays loopback-only on this machine. This address controls the code-server surface used by Code Mode.</p>
         <div class="settings-actions">
-          <button class="button secondary" id="testSettingsButton">Test connection</button>
+          <button class="button secondary" id="testSettingsButton">Test runtime</button>
           <button class="button primary" id="saveSettingsButton">Save</button>
         </div>
       </div>
@@ -174,13 +174,13 @@
       <label>Project name<input id="projectNameInput" maxlength="60" required placeholder="Space Junkz"></label>
       <label>Local folder<input id="projectPathInput" required placeholder="E:\\WIZZ-Server\\workspaces\\my-project"></label>
       <label id="repoField">Git repository <small>optional</small><input id="projectRepoInput" placeholder="https://github.com/owner/repo.git"></label>
-      <div class="modal-note">This browser shell records the project location only. Creating/cloning folders will be wired to the local Code Space runtime in the next stage.</div>
-      <div class="modal-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button type="submit" class="button primary">Save workspace</button></div>
+      <div class="modal-note">New and cloned projects are created by the local Code Space runtime. Opening an existing project verifies the real folder before adding it to the dashboard.</div>
+      <div class="modal-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button type="submit" class="button primary" id="projectSubmitButton">Create project</button></div>
     </form>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="./app.js?v=1" defer></script>
+  <script src="./app.js?v=2" defer></script>
 </body>
 </html>
