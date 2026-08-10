@@ -311,13 +311,14 @@
     els.codeMode.hidden = false;
     els.homeView.classList.add('coding-active');
     els.frameNotice.hidden = false;
-    els.codeServerFrame.src = target;
 
+    // Register before changing src. A local code-server can respond quickly
+    // enough for its load event to fire before a later listener is attached.
     const hideNotice = () => {
       setTimeout(() => { els.frameNotice.hidden = true; }, 600);
-      els.codeServerFrame.removeEventListener('load', hideNotice);
     };
-    els.codeServerFrame.addEventListener('load', hideNotice);
+    els.codeServerFrame.addEventListener('load', hideNotice, { once: true });
+    els.codeServerFrame.src = target;
   }
 
   function exitCodeMode() {
