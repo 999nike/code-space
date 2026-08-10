@@ -40,6 +40,7 @@
   let runtimeInfo = null;
   let toastTimer;
   let startingCodeServer = false;
+  let frameNoticeTimer = null;
 
   function load(key, fallback) {
     try {
@@ -322,16 +323,21 @@
     els.homeView.classList.add('coding-active');
     els.frameNotice.hidden = false;
 
-    // Register before changing src. A local code-server can respond quickly
-    // enough for its load event to fire before a later listener is attached.
+    // The local proxy does not reliably emit iframe load for every
+    // code-server response. Keep the event path, but always release the
+    // notice after a bounded delay so it cannot permanently cover the editor.
+    clearTimeout(frameNoticeTimer);
     const hideNotice = () => {
-      setTimeout(() => { els.frameNotice.hidden = true; }, 600);
+      clearTimeout(frameNoticeTimer);
+      frameNoticeTimer = setTimeout(() => { els.frameNotice.hidden = true; }, 600);
     };
     els.codeServerFrame.addEventListener('load', hideNotice, { once: true });
     els.codeServerFrame.src = target;
+    frameNoticeTimer = setTimeout(() => { els.frameNotice.hidden = true; }, 1600);
   }
 
   function exitCodeMode() {
+    clearTimeout(frameNoticeTimer);
     els.codeMode.hidden = true;
     els.homeView.classList.remove('coding-active');
     els.codeServerFrame.src = 'about:blank';
