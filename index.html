@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#090b12">
   <meta name="description" content="Code Space — a local coding workspace wrapped around code-server.">
   <title>Code Space</title>
-  <link rel="stylesheet" href="./styles.css?v=2">
+  <link rel="stylesheet" href="./styles.css?v=1">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -102,7 +102,7 @@
     <form id="projectForm">
       <div class="modal-head"><div><p class="eyebrow purple">Workspace</p><h2 id="projectDialogTitle">New project</h2></div><button type="button" class="icon-button" data-close-dialog>×</button></div>
       <label>Project name<input id="projectNameInput" maxlength="60" required placeholder="Space Junkz"></label>
-      <label>Local folder<input id="projectPathInput" required placeholder="E:\\WIZZ-Server\\workspaces\\my-project"></label>
+      <label>Local folder <small id="projectPathHint">Optional for new and cloned projects — blank uses the workspace root and project name.</small><input id="projectPathInput" placeholder="E:\\WIZZ-Server\\workspaces\\my-project"></label>
       <label id="repoField">Git repository <small>optional</small><input id="projectRepoInput" placeholder="https://github.com/owner/repo.git"></label>
       <div class="modal-note">New and cloned projects are created by the local Code Space runtime. Opening an existing project verifies the real folder before adding it to the dashboard.</div>
       <div class="modal-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button type="submit" class="button primary" id="projectSubmitButton">Create project</button></div>
@@ -110,6 +110,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=5" defer></script>
+  <script src="./app.js?v=3" defer></script>
 </body>
 </html>
