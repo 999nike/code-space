@@ -11,6 +11,7 @@ const ROOT = path.resolve(process.env.WORKER_APP_ROOT || 'E:\\WIZZ-Server\\works
 const CODE_SPACE_DIR = path.join(ROOT, 'code-space');
 const OFFICE_DIR = path.join(ROOT, 'office-app');
 const LOG_FILE = path.join(CODE_SPACE_DIR, 'worker-app-supervisor.log');
+const CODE_SERVER_LOG = path.join(CODE_SPACE_DIR, 'worker-app-code-server.log');
 
 const SERVICES = {
   office: { name: 'Office', port: 4176, url: 'http://127.0.0.1:4176' },
@@ -53,7 +54,7 @@ function detached(command, args, options = {}) {
     cwd: options.cwd,
     detached: true,
     windowsHide: true,
-    stdio: 'ignore',
+    stdio: options.stdio || 'ignore',
     env: { ...process.env, ...(options.env || {}) }
   });
   child.once('error', (error) => log(`${command} failed to launch: ${error.message}`));
@@ -84,10 +85,18 @@ async function ensureCodeServer() {
 
   let pid;
   if (process.platform === 'win32') {
+    let out;
+    try {
+      out = fs.openSync(CODE_SERVER_LOG, 'a');
+      fs.appendFileSync(CODE_SERVER_LOG, `\n[${new Date().toISOString()}] starting code-server\n`);
+    } catch {}
+
     pid = detached('wsl.exe', [
       '-d', 'Ubuntu', '--', 'bash', '-lc',
-      'nohup setsid code-server --bind-addr 0.0.0.0:8080 >/tmp/worker-app-code-server.log 2>&1 < /dev/null &'
-    ]);
+      'exec code-server --bind-addr 0.0.0.0:8080'
+    ], {
+      stdio: out ? ['ignore', out, out] : 'ignore'
+    });
   } else {
     pid = detached('code-server', ['--bind-addr', '127.0.0.1:8080'], { cwd: ROOT });
   }
@@ -124,6 +133,7 @@ async function main() {
 
   if (!codeSpace.running || !office.running || !codeServer.running) {
     log(`Startup incomplete. See ${LOG_FILE}`);
+    if (!codeServer.running) log(`code-server details: ${CODE_SERVER_LOG}`);
     process.exitCode = 1;
     return;
   }
