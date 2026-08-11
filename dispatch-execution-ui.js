@@ -100,7 +100,9 @@
       <div class="dispatch-task-actions">
         ${status === 'Running'
           ? '<button type="button" class="button primary" disabled>Task running…</button>'
-          : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">Start Task (read/test)</button>`}
+          : status === 'Completed'
+            ? '<button type="button" class="button primary" disabled>Task completed</button>'
+            : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">${status === 'Failed' ? 'Retry Task (read/test)' : 'Start Task (read/test)'}</button>`}
       </div>`;
     preview.appendChild(section);
   }
