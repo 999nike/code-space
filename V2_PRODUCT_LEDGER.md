@@ -1,6 +1,6 @@
 # Code Space V2 Product Ledger
 
-**Updated:** 11 Aug 2026 — Dispatch Inbox + safe mock worker lifecycle verified end to end
+**Updated:** 11 Aug 2026 — first real mediated Office -> Code Space read/test worker verified end to end
 
 This is the active build / handoff ledger for:
 
@@ -23,14 +23,16 @@ Memory Space
 = do not rebuild, move or refactor its working systems
 
 Office App
-= job / worker / dispatch control surface
-= creates bounded dispatch packages for workers
+= job / worker / permission / dispatch control surface
+= discovers project names from Code Space
+= creates bounded dispatch packages
 
 Code Space
 999nike/code-space
 = separate local coding workspace
-= receives validated Office dispatch packages
-= active development repo for coding execution
+= owns real workspace folders
+= validates Office dispatch packages
+= enforces execution capabilities
 
 Memory Graph / Connector
 = later bolt-on apps
@@ -40,88 +42,104 @@ Memory Graph / Connector
 
 ---
 
-# CODE SPACE PURPOSE
-
-Code Space is the coding execution workspace.
-
-Core model:
+# PRODUCT FLOW
 
 ```text
 OFFICE
 creates job + worker + permission snapshot
       |
       v
-DISPATCH PACKAGE
+READY DISPATCH PACKAGE
       |
       v
 CODE SPACE DISPATCH INBOX
-validate only
+validate + display only
       |
       v
-EXPLICIT START TASK BOUNDARY
+EXPLICIT START TASK
       |
       v
-SCOPED WORKER
+MEDIATED WORKER BOUNDARY
       |
       v
-RESULT / HANDOFF
+SCOPED FILE READ / APPROVED TEST
+      |
+      v
+STRUCTURED RESULT / HANDOFF
 ```
 
-Code Space also remains the local wrapper around code-server:
+Guiding principle:
 
-```text
-Code Space shell
-      |
-      +-- projects
-      +-- Dispatch Inbox
-      +-- embedded Code Mode
-      |
-      v
-code-server
-      |
-      +-- real local project folder
-      +-- editor
-      +-- terminal
-      +-- Git
-      +-- future AI CLI worker
-```
-
-**code-server is the coding engine. Code Space is the wrapper / orchestrator / permission boundary.**
+**Office decides the job. Code Space enforces the job. The worker only gets capabilities explicitly granted for that task.**
 
 ---
 
 # CURRENT VERIFIED STATE
 
-## Embedded Code Space baseline — VERIFIED
+## Code Space runtime / code-server — VERIFIED
 
-On the HP:
+HP runtime:
 
-- Code Space runtime runs locally on `http://127.0.0.1:8090`.
-- code-server runs through WSL Ubuntu on `http://127.0.0.1:8080`.
-- Code Space can start/reuse code-server automatically.
-- Real project folders open in the embedded code-server panel.
-- Dashboard/sidebar/status rail remain visible around the editor.
-- Open Separately fallback works.
-- Exit Code Mode returns to the dashboard.
+```text
+Code Space:   http://127.0.0.1:8090
+code-server:  http://127.0.0.1:8080
+Workspaces:   E:\WIZZ-Server\workspaces
+Engine:       Ubuntu WSL
+```
 
-Do not reopen the old fullscreen/loader/WSL installation work without new evidence.
+Code Space remains the wrapper / orchestrator / permission boundary around code-server.
 
 ---
 
-## Office -> Code Space Dispatch Inbox — VERIFIED 11 Aug 2026
+## Dynamic Office project catalog — VERIFIED 11 Aug 2026
 
-The Office dispatch package boundary has now been manually tested on the HP.
+Office no longer depends on a hard-coded project list.
 
-Verified valid package:
+Code Space now owns workspace discovery through:
 
 ```text
-Job: Sandbox UI Flow Test
-Worker: Test Worker Alpha
-Sandbox target: office-app
-Package status: Ready
+GET /api/office/projects
 ```
 
-Permission snapshot shown correctly:
+Verified behavior:
+
+- reads direct folders only from `E:\WIZZ-Server\workspaces`
+- returns safe project-name metadata only
+- excludes the Code Space app folder itself
+- exact local Office CORS origin is `http://127.0.0.1:4176`
+- Office disables project selection/job creation if Code Space project discovery is unavailable
+- Office validates new jobs against the current discovered catalog
+- new folders appear without changing Office code
+
+Manual browser verification showed projects including:
+
+```text
+agent-sandbox-test
+junkz-shooter-landing
+memory-app
+office-app
+Smokey-Space
+space-junkz-shooter
+```
+
+`code-space` was correctly excluded.
+
+Local tests after this patch:
+
+```text
+Office:     29 / 29 pass
+Code Space: 10 / 10 pass
+```
+
+Catalog work was committed/pushed after local verification.
+
+---
+
+## Dispatch Inbox validation — VERIFIED
+
+Office v1 Ready packages are validated before execution.
+
+Verified permission snapshot for the first worker journey:
 
 ```text
 Read files                 Allowed
@@ -133,55 +151,73 @@ Use terminal               Not granted
 
 Verified behavior:
 
-- valid Office v1 Ready package imports successfully
-- package metadata and permissions display correctly
-- importing/selecting performs no execution
-- accepted package survives browser refresh
-- changing package `version` from `1` to `2` is rejected
-- rejected v2 package does not disturb the previously accepted package
-- validator rejects malformed / incomplete / conflicting capability packages
-- `sandboxTarget` remains metadata during import and is not automatically opened or executed
-
-Important commit bringing the locally tested Dispatch Inbox to GitHub:
-
-```text
-7545412 — Add validated Dispatch Inbox
-```
+- valid package imports successfully
+- import/select is passive and does not execute
+- accepted package persists across refresh
+- unsupported package version is rejected
+- malformed, incomplete, conflicting or unknown capability packages fail closed
+- sandbox target is validated metadata, not arbitrary path authority
 
 ---
 
-## Safe execution boundary / mock worker lifecycle — VERIFIED 11 Aug 2026
+# FIRST REAL MEDIATED WORKER — VERIFIED 11 Aug 2026
 
-Code Space now has the next safety layer after import.
-
-Added:
-
-- explicit `Start Task (mock)` action
-- import/select remains passive
-- frozen permission snapshot remains visible before start
-- runner receives an allow-list derived only from `capabilities.allowed`
-- denied / not-granted capabilities fail closed
-- structured task/result records persisted locally
-- lifecycle state: `Ready -> Running -> Completed / Failed`
-- files inspected / tests run / summary / timestamps / denials / errors fields are available in result state
-- mock lifecycle has no filesystem, terminal, command, agent, external-service or Office execution API
-
-For the verified test package the runner grant contained only:
+Disposable target:
 
 ```text
-Read files
-Run tests
-Propose result / handoff
+E:\WIZZ-Server\workspaces\agent-sandbox-test
 ```
 
-It did **not** contain:
+Office job:
 
 ```text
-Modify files
-Use terminal
+Agent Sandbox Read Test
 ```
 
-### Automated test result — VERIFIED locally
+Instruction:
+
+```text
+Read the files in agent-sandbox-test, run the approved test,
+report what the code does and whether the test passes.
+Do not modify any files.
+```
+
+Worker:
+
+```text
+Test Worker Alpha — Coding Worker
+```
+
+Frozen package permissions:
+
+```text
+Read files                 Allowed
+Run tests                  Allowed
+Propose result / handoff   Allowed
+Modify files               Explicitly denied
+Use terminal               Not granted
+```
+
+## Real execution boundary implemented
+
+Code Space now has a first real mediated read/test slice.
+
+It does **not** expose a general terminal, arbitrary shell command, writable filesystem object, network authority, Office authority or AI provider API to the worker.
+
+Current boundary:
+
+- resolves only one direct named sandbox under the approved workspace root
+- rejects path traversal / nested arbitrary paths
+- reads only bounded direct readable code/text files
+- runs only a detected direct `*.test.js`, `*.test.cjs` or `*.test.mjs`
+- test invocation is fixed to Node using `execFile` / `node --test`
+- no shell is granted
+- no arbitrary command string is accepted
+- `modifyFiles` must remain explicitly denied
+- `useTerminal` must remain denied/not granted
+- result/handoff is structured and persisted separately from mutation authority
+
+## Automated tests — VERIFIED locally
 
 Command:
 
@@ -192,55 +228,106 @@ node --test
 Result:
 
 ```text
-9 tests
-9 pass
+13 tests
+13 pass
 0 fail
 ```
 
-Tests covered:
+Coverage includes:
 
-- valid Office v1 Ready package
-- malformed / contract rejection
-- unknown/conflicting capability rejection
-- accepted package independence from later source mutation
-- persisted passive Running result record
-- completion updates same result record
-- runner grant exposes only allowed capabilities
-- denied/not-granted capabilities fail closed
-- mock start contains no execution APIs
+- Office package validation
+- conflicting/unknown capability rejection
+- immutable accepted snapshot behavior
+- read-only worker grant enforcement
+- direct sandbox resolution only
+- direct file inspection
+- fixed approved Node test execution
+- passive/persisted result lifecycle
+- denied/not-granted fail closed
+- dynamic Office project catalog
 
-`npm test` originally failed because the package script used `node --test test` with the current Node v24 runtime. GitHub was corrected so the script now uses `node --test`.
+## Manual first real run — VERIFIED
 
-### Manual browser lifecycle — VERIFIED
-
-Observed on HP:
+The imported Ready package was started with:
 
 ```text
-Ready
-  -> Start Task (mock)
-Running
-  -> Complete mock task
-Completed
-  -> browser refresh
-Completed still present
+Start Task (read/test)
 ```
 
-Verified during lifecycle:
+Observed result:
 
-- same task ID persisted
-- files inspected stayed `0`
-- tests run stayed `0`
-- runner grant remained limited to the three allowed capabilities
-- UI explicitly stated that no files, commands, agents, external services or Office connections were used
-- Completed state survived full browser refresh
+```text
+Status:          Completed
+Files inspected: 2
+Tests run:       1
+Files:           math.js, math.test.js
+Test:            node --test math.test.js — PASS
+Code summary:    function add detected
+Handoff:         approved Node test passed
+```
 
-Current latest safety-layer work is on `main` after the Dispatch Inbox commit.
+The persisted result confirmed:
+
+- actual sandbox files were read
+- the approved test was actually executed
+- no file-modification capability was granted
+- no terminal capability was granted
+- a structured result / handoff was returned
+
+This proves the first real Office -> Code Space execution loop:
+
+```text
+Office job
+  -> Ready package
+  -> export JSON
+  -> Code Space import/validation
+  -> explicit Start Task
+  -> sandbox read
+  -> approved test execution
+  -> structured handoff
+  -> Completed
+```
+
+---
+
+# COMPLETED TASK SAFETY — VERIFIED UI PATCH
+
+After the first successful real run, Code Space was tightened so a Completed task is not accidentally rerun.
+
+Current UI behavior:
+
+```text
+Ready   -> Start Task (read/test)
+Running -> Task running…
+Completed -> Task completed  [disabled]
+Failed  -> Retry Task (read/test)
+```
+
+This preserves the explicit execution boundary and prevents accidental duplicate execution after completion.
+
+---
+
+# SECURITY / EXECUTION RULES — KEEP THESE
+
+- importing a dispatch package must never execute it
+- selecting a package must never execute it
+- execution requires explicit user Start action
+- capabilities are code-enforced allow-lists, not hints
+- denied or not-granted capabilities must not be supplied to the worker
+- Code Space resolves sandbox paths server-side from the approved workspace root
+- no arbitrary path from package/client becomes filesystem authority
+- Run tests does not imply general terminal access
+- first worker test uses a dedicated approved-test capability, not a shell
+- result/handoff does not imply authority to mutate project files
+- no automatic Git push / merge
+- no silent permission escalation
+- do not point experimental workers at Memory Space
 
 ---
 
 # CURRENT MACHINE / REPO STATE
 
-Code Space repo:
+Repo:
 
 ```text
 E:\WIZZ-Server\workspaces\code-space
@@ -260,90 +347,28 @@ Tests:
 node --test
 ```
 
-If PowerShell blocks `npm.ps1`, use:
-
-```powershell
-npm.cmd test
-```
-
-Do not change PowerShell execution policy merely to run npm.
+If PowerShell blocks `npm.ps1`, use `npm.cmd test`; do not change execution policy just for npm.
 
 ---
 
-# NEXT BUILD TARGET — FIRST REAL WORKER JOURNEY
+# NEXT TARGET
 
-The no-op boundary is complete and verified.
+The read/test/result execution boundary is now proven.
 
-The next target is **not** another mock. It is the first real, tiny, disposable worker task.
+The next major decision is how the **actual AI coding worker** is connected behind this boundary.
 
-A separate disposable sandbox has been created for this purpose rather than pointing the first worker at Office or Code Space itself.
+Do not confuse the current mediated worker with an AI model: the current worker performs real filesystem reads and approved test execution, but its code summary is deterministic/local and no Codex/Claude/Grok worker has yet been attached.
 
-Use only tiny test code, for example:
-
-```text
-agent-sandbox-test/
-  math.js
-  math.test.js
-```
-
-First real task should be approximately:
+Before adding an AI worker, preserve the same capability model:
 
 ```text
-Read math.js.
-Inspect math.test.js.
-Run the approved test.
-Report what the code does and whether the test passes.
-Do not modify any files.
+Office package
+  -> Code Space validated grant
+  -> scoped mediated capabilities only
+  -> AI receives observations/results, not raw unrestricted machine authority
 ```
 
-Required first real worker permissions:
-
-```text
-Read files                 Allowed
-Run tests                  Allowed
-Propose result / handoff   Allowed
-Modify files               Explicitly denied
-Use terminal               Not granted
-```
-
-Target path:
-
-```text
-Office
-  -> create tiny sandbox job
-  -> assign worker
-  -> freeze permissions
-  -> export/send dispatch package
-Code Space
-  -> validate package
-  -> user explicitly starts worker
-  -> worker reads only sandbox files
-  -> worker runs only approved test path
-  -> worker cannot modify files
-  -> worker returns structured result
-  -> task stops
-```
-
-**Do not grant Modify files in the first real worker test.**
-
-After the read/test/result loop is proven, a later second disposable test may explicitly grant Modify files for one tiny controlled change.
-
----
-
-# SECURITY / EXECUTION RULES — KEEP THESE
-
-- importing a dispatch package must never execute it
-- selecting a package must never execute it
-- execution requires explicit user Start action
-- capabilities are an allow-list, not hints
-- anything denied or not granted must not be supplied to the runner
-- display permission is not enough; enforcement must exist in code
-- sandbox target metadata must not become arbitrary filesystem authority
-- worker must be constrained to the task sandbox
-- no automatic Git push
-- no silent permission escalation
-- no real worker should gain terminal/filesystem authority merely because code-server itself has those capabilities
-- result/handoff is separate from authority to mutate code
+A later controlled mutation test may grant `Modify files` for one disposable task, but only after its write boundary is explicitly designed and tested.
 
 ---
 
@@ -353,18 +378,17 @@ Do not:
 
 - modify `999nike/memory-app`
 - move Memory Bridge functionality
-- involve Memory Space in this first worker execution test
-- point the first real worker at Office App or Code Space itself
-- grant Modify files for the first real test
-- grant unrestricted terminal access
-- let imported package data directly call Node/filesystem/terminal APIs
+- grant unrestricted terminal access to the worker
+- give imported package data direct Node/filesystem/child-process authority
+- let Run tests silently become shell access
 - redesign Code Space while proving the worker boundary
 - add automatic Git push/merge behavior
+- call the current deterministic read/test worker an AI agent
 
 ---
 
-# GUIDING PRINCIPLE
+# MILESTONE
 
-**Office decides the job. Code Space enforces the job. The worker only gets the capabilities explicitly granted for that task.**
+**11 Aug 2026: first real Office -> Code Space bounded worker execution proven end to end on the HP.**
 
-The first real proof is deliberately small: read a disposable file, run one approved test, return a result, stop.
+A Ready Office job successfully became a validated Code Space task that read two disposable sandbox files, ran one approved Node test, produced a persisted structured handoff, and completed without file-modification or terminal authority.
