@@ -9,6 +9,7 @@ const path = require('node:path');
 const { execFile, spawn } = require('node:child_process');
 const { promisify } = require('node:util');
 const { listOfficeProjects } = require('./office-project-catalog.js');
+const { runReadOnlyDispatchTask } = require('./dispatch-readonly-worker.js');
 
 const execFileAsync = promisify(execFile);
 const HOST = '127.0.0.1';
@@ -183,8 +184,6 @@ function startDetachedCodeServer() {
     child = spawn('wsl.exe', [
       '-d', 'Ubuntu',
       '--', 'bash', '-lc',
-      // Keep code-server alive after this short WSL launcher exits. The log is
-      // deliberately retained in WSL so a failed one-click launch is diagnosable.
       'nohup setsid code-server --bind-addr 0.0.0.0:8080 >/tmp/code-space-code-server.log 2>&1 < /dev/null &'
     ], {
       windowsHide: true,
@@ -283,6 +282,11 @@ async function handleApi(req, res, pathname) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const body = await readBody(req);
 
+  if (pathname === '/api/dispatch/run-readonly') {
+    const result = await runReadOnlyDispatchTask(body.package, { root: ROOT });
+    return json(res, 200, result);
+  }
+
   if (pathname === '/api/code-server/start') {
     return json(res, 200, await ensureCodeServer());
   }
@@ -374,7 +378,8 @@ function proxyCodeServer(req, res, url) {
 function proxyCodeServerUpgrade(req, socket, head) {
   const target = new URL(CODE_SERVER_URL);
   const upstream = net.connect(Number(target.port || 80), target.hostname, () => {
-    const pathname = proxyPath(new URL(req.url, `http://${HOST}:${PORT}`).pathname, new URL(req.url, `http://${HOST}:${PORT}`).search);
+    const parsed = new URL(req.url, `http://${HOST}:${PORT}`);
+    const pathname = proxyPath(parsed.pathname, parsed.search);
     const headers = proxyHeaders(req.headers);
     headers.connection = 'Upgrade';
     const lines = [`${req.method} ${pathname} HTTP/${req.httpVersion}`];
