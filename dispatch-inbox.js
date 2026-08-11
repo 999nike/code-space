@@ -22,6 +22,9 @@
     add(packageSnapshot) {
       const items = read().filter((item) => item.packageId !== packageSnapshot.packageId);
       write([{ ...packageSnapshot, importedAt: new Date().toISOString() }, ...items]);
+    },
+    remove(packageId) {
+      return write(read().filter((item) => item.packageId !== packageId));
     }
   });
 })();
