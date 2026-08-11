@@ -529,6 +529,14 @@
     if (event.target.closest('[data-close-dialog]')) els.projectDialog.close();
   });
 
+  window.addEventListener('code-space:office-dispatch-received', (event) => {
+    const packageId = event.detail?.packageId;
+    if (!packageId) return;
+    selectedDispatchId = packageId;
+    renderDispatchInbox();
+    switchView('dispatch');
+  });
+
   document.getElementById('newProjectButton').addEventListener('click', () => openProjectDialog('new'));
   document.getElementById('importProjectButton').addEventListener('click', () => openProjectDialog('open'));
   document.getElementById('checkServerButton').addEventListener('click', () => checkRuntime());

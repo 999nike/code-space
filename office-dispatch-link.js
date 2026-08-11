@@ -78,10 +78,19 @@
     try {
       const accepted = window.CodeSpaceDispatchPackage.validate(decodePackage(payload));
       window.CodeSpaceDispatchInbox.add(accepted);
-      sessionStorage.setItem(PENDING_KEY, accepted.packageId);
       url.searchParams.delete('officeDispatch');
       history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-      location.reload();
+      window.dispatchEvent(new CustomEvent('code-space:office-dispatch-received', {
+        detail: { packageId: accepted.packageId }
+      }));
+      markNewJob();
+      tunePendingView();
+      const toast = document.getElementById('toast');
+      if (toast) {
+        toast.textContent = 'NEW JOB received from Office';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3200);
+      }
       return true;
     } catch (error) {
       console.error('Office dispatch link rejected:', error);
@@ -164,10 +173,8 @@
     if (event.target.closest('[data-start-real-task]')) clearNewJob();
   });
 
-  if (!importFromOfficeLink()) {
-    openPendingJob();
-    const observer = new MutationObserver(tuneAuthorisationButtons);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    tuneAuthorisationButtons();
-  }
+  if (!importFromOfficeLink()) openPendingJob();
+  const observer = new MutationObserver(tuneAuthorisationButtons);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  tuneAuthorisationButtons();
 })();
