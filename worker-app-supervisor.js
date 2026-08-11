@@ -117,6 +117,7 @@ async function main() {
   log(`Office ${office.running ? 'ready' : 'FAILED'} at ${SERVICES.office.url}`);
 
   if (office.running) openUrl(SERVICES.office.url);
+  if (codeSpace.running) openUrl(SERVICES.codeSpace.url);
 
   const codeServer = await ensureCodeServer();
   log(`code-server ${codeServer.running ? 'ready' : 'FAILED'} at ${SERVICES.codeServer.url}`);
