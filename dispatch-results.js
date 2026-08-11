@@ -44,31 +44,52 @@
     return read().find((item) => item.packageId === packageId) || null;
   }
 
-  function start(packageSnapshot, mockSession) {
-    if (!packageSnapshot || !mockSession?.grant) throw new Error('A validated package and mock runner grant are required.');
-    const startedAt = mockSession.startedAt || new Date().toISOString();
-    const record = {
+  function baseRecord(packageSnapshot, grant, summary, startedAt = new Date().toISOString()) {
+    return {
       taskId: uid(),
       packageId: String(packageSnapshot.packageId || ''),
       jobId: String(packageSnapshot.sourceJobId || ''),
       workerId: String(packageSnapshot.worker?.id || ''),
       workerName: String(packageSnapshot.worker?.name || ''),
       status: 'Running',
-      summary: 'Mock worker lifecycle started. No files, tests, commands, agents, external services, or Office connections were used.',
+      summary,
       filesInspected: [],
-      testsRequested: mockSession.grant.capabilities.runTests
-        ? ['Run tests capability is granted; the mock worker does not execute tests.']
-        : [],
+      testsRequested: grant.capabilities.runTests ? ['Approved Node test requested.'] : [],
       testsRun: [],
-      proposedResult: mockSession.grant.capabilities.proposeResult
-        ? 'No real worker result exists. This is a mock lifecycle record only.'
-        : null,
+      proposedResult: null,
       startedAt,
       completedAt: null,
-      capabilityGrant: [...mockSession.grant.allowed],
+      capabilityGrant: [...grant.allowed],
       denialEvents: [],
       errors: []
     };
+  }
+
+  function start(packageSnapshot, mockSession) {
+    if (!packageSnapshot || !mockSession?.grant) throw new Error('A validated package and mock runner grant are required.');
+    const record = baseRecord(
+      packageSnapshot,
+      mockSession.grant,
+      'Mock worker lifecycle started. No files, tests, commands, agents, external services, or Office connections were used.',
+      mockSession.startedAt || new Date().toISOString()
+    );
+    record.testsRequested = mockSession.grant.capabilities.runTests
+      ? ['Run tests capability is granted; the mock worker does not execute tests.']
+      : [];
+    record.proposedResult = mockSession.grant.capabilities.proposeResult
+      ? 'No real worker result exists. This is a mock lifecycle record only.'
+      : null;
+    write([record, ...read()]);
+    return structuredClone(record);
+  }
+
+  function startReal(packageSnapshot, grant) {
+    if (!packageSnapshot || !grant) throw new Error('A validated package and runner grant are required.');
+    const record = baseRecord(
+      packageSnapshot,
+      grant,
+      'Read-only worker started. Code Space is mediating only the granted file-read and approved-test capabilities.'
+    );
     write([record, ...read()]);
     return structuredClone(record);
   }
@@ -91,13 +112,28 @@
     }));
   }
 
+  function completeReal(taskId, output) {
+    if (!output || output.mode !== 'read-only-worker') throw new Error('Read-only worker returned an invalid result.');
+    return update(taskId, (record) => ({
+      ...record,
+      status: 'Completed',
+      summary: String(output.summary || 'Read-only worker completed.'),
+      filesInspected: Array.isArray(output.filesInspected) ? structuredClone(output.filesInspected) : [],
+      testsRun: Array.isArray(output.testsRun) ? structuredClone(output.testsRun) : [],
+      proposedResult: output.proposedResult ? String(output.proposedResult) : null,
+      completedAt: output.completedAt || new Date().toISOString()
+    }));
+  }
+
   function fail(taskId, message) {
     return update(taskId, (record) => ({
       ...record,
       status: 'Failed',
-      summary: 'Mock worker lifecycle failed before any execution capability was used.',
+      summary: record?.summary?.startsWith('Mock')
+        ? 'Mock worker lifecycle failed before any execution capability was used.'
+        : 'Read-only worker failed inside the mediated execution boundary.',
       completedAt: new Date().toISOString(),
-      errors: [...(record.errors || []), String(message || 'Unknown mock lifecycle failure')]
+      errors: [...(record.errors || []), String(message || 'Unknown worker failure')]
     }));
   }
 
@@ -116,5 +152,15 @@
   }
 
   const scope = typeof window === 'undefined' ? globalThis : window;
-  scope.CodeSpaceDispatchResults = Object.freeze({ KEY, list, latestForPackage, start, complete, fail, recordDenial });
+  scope.CodeSpaceDispatchResults = Object.freeze({
+    KEY,
+    list,
+    latestForPackage,
+    start,
+    startReal,
+    complete,
+    completeReal,
+    fail,
+    recordDenial
+  });
 })();
