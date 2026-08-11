@@ -11,6 +11,7 @@ const MAX_FILE_BYTES = 64 * 1024;
 const MAX_OUTPUT = 64 * 1024;
 const READABLE_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.json', '.md', '.txt']);
 const TEST_PATTERN = /\.test\.(?:js|cjs|mjs)$/i;
+const KNOWN_CAPABILITIES = ['readFiles', 'modifyFiles', 'runTests', 'useTerminal', 'proposeResult'];
 const REQUIRED_ALLOWED = ['readFiles', 'runTests', 'proposeResult'];
 
 function text(value, label) {
@@ -28,12 +29,31 @@ function assertSafeGrant(packageSnapshot) {
   if (!packageSnapshot || packageSnapshot.format !== 'office-dispatch-package' || packageSnapshot.version !== 1) {
     throw new Error('Unsupported dispatch package.');
   }
+  text(packageSnapshot.packageId, 'packageId');
+  text(packageSnapshot.sourceJobId, 'sourceJobId');
+  text(packageSnapshot.sandboxTarget, 'sandboxTarget');
   if (packageSnapshot.packageStatus !== 'Ready') throw new Error('Only Ready dispatch packages can execute.');
 
-  const allowed = new Set(capabilityKeys(packageSnapshot, 'allowed'));
-  const denied = new Set(capabilityKeys(packageSnapshot, 'explicitlyDenied'));
-  const notGranted = new Set(capabilityKeys(packageSnapshot, 'notGranted'));
+  const groups = {
+    allowed: capabilityKeys(packageSnapshot, 'allowed'),
+    explicitlyDenied: capabilityKeys(packageSnapshot, 'explicitlyDenied'),
+    notGranted: capabilityKeys(packageSnapshot, 'notGranted')
+  };
+  const seen = new Set();
+  for (const keys of Object.values(groups)) {
+    for (const key of keys) {
+      if (!KNOWN_CAPABILITIES.includes(key)) throw new Error(`Unsupported capability key: ${key}.`);
+      if (seen.has(key)) throw new Error(`Capability ${key} appears in conflicting permission groups.`);
+      seen.add(key);
+    }
+  }
+  if (seen.size !== KNOWN_CAPABILITIES.length) {
+    throw new Error('The package must classify every known capability exactly once.');
+  }
 
+  const allowed = new Set(groups.allowed);
+  const denied = new Set(groups.explicitlyDenied);
+  const notGranted = new Set(groups.notGranted);
   for (const capability of REQUIRED_ALLOWED) {
     if (!allowed.has(capability)) throw new Error(`Required capability is not allowed: ${capability}.`);
   }
