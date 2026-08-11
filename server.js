@@ -10,6 +10,7 @@ const { execFile, spawn } = require('node:child_process');
 const { promisify } = require('node:util');
 const { listOfficeProjects } = require('./office-project-catalog.js');
 const { runReadOnlyDispatchTask } = require('./dispatch-readonly-worker.js');
+const { runWriteDispatchTask } = require('./dispatch-write-worker.js');
 
 const execFileAsync = promisify(execFile);
 const HOST = '127.0.0.1';
@@ -284,6 +285,11 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === '/api/dispatch/run-readonly') {
     const result = await runReadOnlyDispatchTask(body.package, { root: ROOT });
+    return json(res, 200, result);
+  }
+
+  if (pathname === '/api/dispatch/run-write') {
+    const result = await runWriteDispatchTask(body.package, { root: ROOT });
     return json(res, 200, result);
   }
 

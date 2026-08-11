@@ -50,6 +50,8 @@
   function resultRows(result) {
     if (!result) return '';
     const files = Array.isArray(result.filesInspected) ? result.filesInspected : [];
+    const created = Array.isArray(result.filesCreated) ? result.filesCreated : [];
+    const modified = Array.isArray(result.filesModified) ? result.filesModified : [];
     const tests = Array.isArray(result.testsRun) ? result.testsRun : [];
     const fileNames = files.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean);
     const testLines = tests.map((item) => {
@@ -66,6 +68,8 @@
         <div><dt>Tests run</dt><dd>${tests.length}</dd></div>
       </dl>
       ${fileNames.length ? `<p class="dispatch-task-summary"><strong>Files:</strong> ${fileNames.map(escapeHtml).join(' · ')}</p>` : ''}
+      ${created.length ? `<p class="dispatch-task-summary"><strong>Created:</strong> ${created.map((item) => escapeHtml(item?.name || item)).join(' · ')}</p>` : ''}
+      ${modified.length ? `<p class="dispatch-task-summary"><strong>Modified:</strong> ${modified.map((item) => escapeHtml(item?.name || item)).join(' · ')}</p>` : ''}
       ${testLines.length ? `<p class="dispatch-task-summary"><strong>Tests:</strong> ${testLines.map(escapeHtml).join(' · ')}</p>` : ''}
       <p class="dispatch-task-summary">${escapeHtml(result.summary)}</p>
       ${result.proposedResult ? `<p class="dispatch-task-summary"><strong>Proposed handoff:</strong> ${escapeHtml(result.proposedResult)}</p>` : ''}
@@ -80,6 +84,7 @@
     const result = window.CodeSpaceDispatchResults?.latestForPackage?.(item.packageId) || null;
     const status = result?.status || 'Ready';
     const grant = window.CodeSpaceDispatchRunner?.createGrant?.(item);
+    const writeTask = window.CodeSpaceDispatchRunner?.has?.(grant, 'modifyFiles');
     const grantedLabels = (grant?.allowed || []).map((key) => window.CodeSpaceDispatchPackage.CAPABILITIES[key] || key);
 
     const section = document.createElement('section');
@@ -91,7 +96,7 @@
         <span class="dispatch-task-state" data-state="${escapeHtml(status.toLowerCase())}">${escapeHtml(status)}</span>
       </div>
       <p class="dispatch-task-copy">${status === 'Ready'
-        ? 'Nothing has been executed. Start Task runs the mediated read/test worker only.'
+        ? writeTask ? 'Nothing has been executed. Authorise & Start runs the single approved write inside the sandbox.' : 'Nothing has been executed. Start Task runs the mediated read/test worker only.'
         : status === 'Running'
           ? 'The read-only worker is running inside the granted sandbox boundary.'
           : 'A persisted task result exists. No file-modification or terminal capability was granted.'}</p>
@@ -102,7 +107,7 @@
           ? '<button type="button" class="button primary" disabled>Task running…</button>'
           : status === 'Completed'
             ? '<button type="button" class="button primary" disabled>Task completed</button>'
-            : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">${status === 'Failed' ? 'Retry Task (read/test)' : 'Start Task (read/test)'}</button>`}
+            : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">${status === 'Failed' ? (writeTask ? 'Retry Task (write)' : 'Retry Task (read/test)') : (writeTask ? 'Start Task (write)' : 'Start Task (read/test)')}</button>`}
       </div>`;
     preview.appendChild(section);
   }
@@ -119,6 +124,30 @@
 
   async function runRealTask(item) {
     const grant = window.CodeSpaceDispatchRunner.createGrant(item);
+    const writeTask = window.CodeSpaceDispatchRunner.has(grant, 'modifyFiles');
+    if (writeTask) {
+      window.CodeSpaceDispatchRunner.assertAllowed(grant, 'modifyFiles');
+      window.CodeSpaceDispatchRunner.assertAllowed(grant, 'proposeResult');
+      if (window.CodeSpaceDispatchRunner.has(grant, 'useTerminal')) throw new Error('Write worker refuses Use terminal.');
+      const result = window.CodeSpaceDispatchResults.startWrite(item, grant);
+      rerenderExecutionOnly();
+      try {
+        const response = await fetch('/api/dispatch/run-write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package: item })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || `Worker returned HTTP ${response.status}`);
+        window.CodeSpaceDispatchResults.completeWrite(result.taskId, data);
+      } catch (error) {
+        window.CodeSpaceDispatchResults.fail(result.taskId, error?.message || 'Write worker failed.');
+        console.error('Could not run write dispatch task:', error);
+      }
+      rerenderExecutionOnly();
+      return;
+    }
+
     window.CodeSpaceDispatchRunner.assertAllowed(grant, 'readFiles');
     window.CodeSpaceDispatchRunner.assertAllowed(grant, 'runTests');
     window.CodeSpaceDispatchRunner.assertAllowed(grant, 'proposeResult');

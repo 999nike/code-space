@@ -4,7 +4,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 
 const HOST = '127.0.0.1';
 const ROOT = path.resolve(process.env.WORKER_APP_ROOT || 'E:\\WIZZ-Server\\workspaces');
@@ -62,6 +62,50 @@ function detached(command, args, options = {}) {
   return child.pid;
 }
 
+async function stopCodeSpaceListener() {
+  if (process.platform !== 'win32') {
+    throw new Error('Managed Code Space restart is only available from the Windows Worker App supervisor');
+  }
+
+  // Identify the listener first, then verify it is this app's Node server before
+  // stopping it. This prevents a restart request from affecting another service.
+  const script = [
+    `$connection = Get-NetTCPConnection -LocalAddress '${HOST}' -LocalPort ${SERVICES.codeSpace.port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    'if (-not $connection) { exit 0 }',
+    '$process = Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)"',
+    "if (-not $process -or $process.Name -notmatch '^node(\\.exe)?$' -or $process.CommandLine -notmatch '(?i)(^|[\\\\/\\s])server\\.js(?:\\s|$)') {",
+    "  throw 'Refusing to stop port 8090: its listener is not the Code Space node server.'",
+    '}',
+    'Stop-Process -Id $connection.OwningProcess -Force',
+    'Write-Output $connection.OwningProcess'
+  ].join('; ');
+
+  const result = await new Promise((resolve, reject) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      windowsHide: true,
+      timeout: 10000
+    }, (error, stdout, stderr) => {
+      if (error) return reject(new Error(String(stderr || error.message).trim()));
+      resolve(String(stdout || '').trim());
+    });
+  });
+
+  if (!result) return { stopped: false, pid: null };
+  const stopped = !(await waitFor(SERVICES.codeSpace.port, 2000));
+  if (!stopped) throw new Error(`Code Space process ${result} did not stop cleanly`);
+  return { stopped: true, pid: Number(result) };
+}
+
+async function restartCodeSpace() {
+  const previous = await stopCodeSpaceListener();
+  if (previous.stopped) log(`Stopped Code Space process ${previous.pid}`);
+  else log('Code Space was not running; starting it now');
+
+  const codeSpace = await ensureCodeSpace();
+  if (!codeSpace.running) throw new Error('Code Space did not become ready after restart');
+  return codeSpace;
+}
+
 async function ensureCodeSpace() {
   if (await reachable(SERVICES.codeSpace.port)) return { running: true, started: false };
   log('Starting Code Space...');
@@ -115,7 +159,14 @@ function openUrl(url) {
 }
 
 async function main() {
-  log('Worker App startup requested');
+  const restartOnly = process.argv.includes('--restart-code-space');
+  log(restartOnly ? 'Code Space managed restart requested' : 'Worker App startup requested');
+
+  if (restartOnly) {
+    const codeSpace = await restartCodeSpace();
+    log(`Code Space ready at ${SERVICES.codeSpace.url}`);
+    return;
+  }
 
   const [codeSpace, office] = await Promise.all([
     ensureCodeSpace(),

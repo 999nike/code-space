@@ -54,6 +54,8 @@
       status: 'Running',
       summary,
       filesInspected: [],
+      filesCreated: [],
+      filesModified: [],
       testsRequested: grant.capabilities.runTests ? ['Approved Node test requested.'] : [],
       testsRun: [],
       proposedResult: null,
@@ -125,6 +127,31 @@
     }));
   }
 
+  function startWrite(packageSnapshot, grant) {
+    if (!packageSnapshot || !grant) throw new Error('A validated package and runner grant are required.');
+    const record = baseRecord(
+      packageSnapshot,
+      grant,
+      'Write worker started. Code Space is mediating only the frozen file-modification grant inside the approved sandbox.'
+    );
+    record.testsRequested = [];
+    write([record, ...read()]);
+    return structuredClone(record);
+  }
+
+  function completeWrite(taskId, output) {
+    if (!output || output.mode !== 'write-worker') throw new Error('Write worker returned an invalid result.');
+    return update(taskId, (record) => ({
+      ...record,
+      status: 'Completed',
+      summary: String(output.summary || 'Write worker completed.'),
+      filesCreated: Array.isArray(output.filesCreated) ? structuredClone(output.filesCreated) : [],
+      filesModified: Array.isArray(output.filesModified) ? structuredClone(output.filesModified) : [],
+      proposedResult: output.proposedResult ? String(output.proposedResult) : null,
+      completedAt: output.completedAt || new Date().toISOString()
+    }));
+  }
+
   function fail(taskId, message) {
     return update(taskId, (record) => ({
       ...record,
@@ -160,6 +187,8 @@
     startReal,
     complete,
     completeReal,
+    startWrite,
+    completeWrite,
     fail,
     recordDenial
   });
