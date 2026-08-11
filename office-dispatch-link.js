@@ -17,7 +17,40 @@
     return document.querySelector('[data-view="dispatch"]');
   }
 
+  function ensureIndicatorStyles() {
+    if (document.getElementById('office-job-indicator-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'office-job-indicator-styles';
+    style.textContent = `
+      [data-view="dispatch"].has-new-job {
+        border-color: rgba(63, 225, 138, .9) !important;
+        box-shadow: 0 0 0 1px rgba(63, 225, 138, .35), 0 0 22px rgba(63, 225, 138, .22);
+        animation: officeJobPulse 1.2s ease-in-out infinite;
+      }
+      .new-job-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        margin-top: 5px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: #3fe18a;
+        color: #07110b;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .12em;
+      }
+      @keyframes officeJobPulse {
+        0%, 100% { transform: translateZ(0); }
+        50% { transform: translateZ(0) scale(1.015); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function markNewJob() {
+    ensureIndicatorStyles();
     const nav = dispatchNav();
     if (!nav) return;
     nav.classList.add('has-new-job');
@@ -25,7 +58,7 @@
     if (title && !title.querySelector('.new-job-badge')) {
       const badge = document.createElement('span');
       badge.className = 'new-job-badge';
-      badge.textContent = 'NEW';
+      badge.textContent = 'NEW JOB';
       title.appendChild(badge);
     }
   }
@@ -133,10 +166,7 @@
 
   if (!importFromOfficeLink()) {
     openPendingJob();
-    const observer = new MutationObserver(() => {
-      tuneAuthorisationButtons();
-      if (sessionStorage.getItem(PENDING_KEY)) markNewJob();
-    });
+    const observer = new MutationObserver(tuneAuthorisationButtons);
     observer.observe(document.documentElement, { childList: true, subtree: true });
     tuneAuthorisationButtons();
   }
