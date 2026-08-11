@@ -15,6 +15,13 @@
     workspaceEmpty: document.getElementById('workspaceEmpty'),
     projectCount: document.getElementById('projectCount'),
     activityList: document.getElementById('activityList'),
+    dispatchInboxView: document.getElementById('dispatchInboxView'),
+    dispatchFileInput: document.getElementById('dispatchFileInput'),
+    dispatchFileName: document.getElementById('dispatchFileName'),
+    importDispatchButton: document.getElementById('importDispatchButton'),
+    dispatchMessage: document.getElementById('dispatchMessage'),
+    dispatchList: document.getElementById('dispatchList'),
+    dispatchPreview: document.getElementById('dispatchPreview'),
     projectDialog: document.getElementById('projectDialog'),
     projectForm: document.getElementById('projectForm'),
     projectDialogTitle: document.getElementById('projectDialogTitle'),
@@ -41,6 +48,7 @@
   let toastTimer;
   let startingCodeServer = false;
   let frameNoticeTimer = null;
+  let selectedDispatchId = null;
 
   function load(key, fallback) {
     try {
@@ -69,6 +77,10 @@
     return Array.isArray(value) ? value : [];
   }
 
+  function dispatchPackages() {
+    return window.CodeSpaceDispatchInbox.list();
+  }
+
   async function api(path, options = {}) {
     const response = await fetch(path, {
       cache: 'no-store',
@@ -90,8 +102,65 @@
   function render() {
     renderProjects();
     renderActivity();
+    renderDispatchInbox();
     els.codeServerUrlInput.value = settings().codeServerUrl;
     checkRuntime({ quiet: true });
+  }
+
+  function renderDispatchInbox() {
+    const items = dispatchPackages();
+    if (!items.some((item) => item.packageId === selectedDispatchId)) selectedDispatchId = items[0]?.packageId || null;
+    els.dispatchList.innerHTML = items.length ? items.map((item) => `
+      <button type="button" class="dispatch-inbox-item ${item.packageId === selectedDispatchId ? 'active' : ''}" data-select-dispatch="${escapeAttr(item.packageId)}">
+        <span class="dispatch-ready">Ready</span><strong>${escapeHtml(item.jobTitle)}</strong><small>${escapeHtml(item.worker.name)} · ${escapeHtml(item.packageId)}</small>
+      </button>`).join('') : '<p class="muted dispatch-empty">No imported packages. Choose a Ready Office package to inspect it here.</p>';
+    const selected = items.find((item) => item.packageId === selectedDispatchId);
+    els.dispatchPreview.innerHTML = selected ? dispatchPreviewMarkup(selected) : '<div class="dispatch-preview-empty"><span>⇩</span><h3>Dispatch Package Preview</h3><p>Choose a local Office handoff file. Nothing is executed.</p></div>';
+  }
+
+  function dispatchPreviewMarkup(item) {
+    const permissionRows = (group, label, className) => item.capabilities[group].map((capability) => `<div class="dispatch-permission ${className}"><span>${escapeHtml(capability.label)}</span><strong>${label}</strong></div>`).join('');
+    return `
+      <div class="dispatch-preview-head"><div><p class="eyebrow purple">Validated package only</p><h3>Dispatch Package Preview</h3><p>Nothing has been executed.</p></div><span class="dispatch-valid">✓ Valid</span></div>
+      <dl class="dispatch-facts">
+        <div><dt>Package ID</dt><dd>${escapeHtml(item.packageId)}</dd></div>
+        <div><dt>Source job ID</dt><dd>${escapeHtml(item.sourceJobId)}</dd></div>
+        <div><dt>Job</dt><dd>${escapeHtml(item.jobTitle)}</dd></div>
+        <div><dt>Priority</dt><dd>${escapeHtml(item.priority)}</dd></div>
+        <div><dt>Job snapshot status</dt><dd>${escapeHtml(item.jobStatusAtSnapshot)}</dd></div>
+        <div><dt>Sandbox target</dt><dd>${escapeHtml(item.sandboxTarget)}</dd></div>
+        <div><dt>Worker</dt><dd>${escapeHtml(item.worker.name)} · ${escapeHtml(item.worker.role)}</dd></div>
+        <div><dt>Result / handoff</dt><dd>${escapeHtml(item.resultHandoffPermissionState)}</dd></div>
+        <div><dt>Package status</dt><dd>${escapeHtml(item.packageStatus)}</dd></div>
+      </dl>
+      <section class="dispatch-instructions"><p class="eyebrow">Instructions</p><p>${escapeHtml(item.instructions)}</p></section>
+      <section class="dispatch-capabilities"><div class="dispatch-capability-head"><p class="eyebrow">Permission snapshot</p><span>Frozen Office data</span></div>${permissionRows('allowed', 'Allowed', 'allowed')}${permissionRows('explicitlyDenied', 'Explicitly denied', 'denied')}${permissionRows('notGranted', 'Not granted', 'not-granted')}</section>`;
+  }
+
+  async function importDispatchFile() {
+    const file = els.dispatchFileInput.files?.[0];
+    if (!file) {
+      setDispatchMessage('Choose a local .json file first.', 'error');
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      setDispatchMessage('Only .json package files are accepted.', 'error');
+      return;
+    }
+    try {
+      const accepted = window.CodeSpaceDispatchPackage.parse(await file.text());
+      window.CodeSpaceDispatchInbox.add(accepted);
+      selectedDispatchId = accepted.packageId;
+      setDispatchMessage(`Validated ${accepted.packageId}. Preview only — nothing executed.`, 'valid');
+      renderDispatchInbox();
+    } catch (error) {
+      setDispatchMessage(`Package rejected: ${error?.message || 'Invalid package.'}`, 'error');
+    }
+  }
+
+  function setDispatchMessage(message, state = '') {
+    els.dispatchMessage.textContent = message;
+    els.dispatchMessage.className = `dispatch-message ${state}`;
   }
 
   function renderProjects() {
@@ -388,9 +457,11 @@
 
   function switchView(view) {
     const settingsOpen = view === 'settings';
-    els.homeView.hidden = settingsOpen;
-    els.rightRail.hidden = settingsOpen;
+    const dispatchOpen = view === 'dispatch';
+    els.homeView.hidden = settingsOpen || dispatchOpen;
+    els.rightRail.hidden = settingsOpen || dispatchOpen;
     els.settingsView.hidden = !settingsOpen;
+    els.dispatchInboxView.hidden = !dispatchOpen;
     document.querySelectorAll('.side-link').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   }
 
@@ -449,6 +520,12 @@
     const removeId = event.target.closest('[data-remove-project]')?.dataset.removeProject;
     if (removeId) removeProject(removeId);
 
+    const dispatchId = event.target.closest('[data-select-dispatch]')?.dataset.selectDispatch;
+    if (dispatchId) {
+      selectedDispatchId = dispatchId;
+      renderDispatchInbox();
+    }
+
     if (event.target.closest('[data-close-dialog]')) els.projectDialog.close();
   });
 
@@ -459,6 +536,12 @@
   document.getElementById('saveSettingsButton').addEventListener('click', saveSettings);
   document.getElementById('exitCodeModeButton').addEventListener('click', exitCodeMode);
   document.getElementById('openExternalButton').addEventListener('click', openExternal);
+  els.dispatchFileInput.addEventListener('change', () => {
+    const file = els.dispatchFileInput.files?.[0];
+    els.dispatchFileName.textContent = file ? file.name : 'No file selected';
+    setDispatchMessage('');
+  });
+  els.importDispatchButton.addEventListener('click', importDispatchFile);
   els.projectForm.addEventListener('submit', submitProject);
   els.projectDialog.addEventListener('cancel', (event) => {
     event.preventDefault();

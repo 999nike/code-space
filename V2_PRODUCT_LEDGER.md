@@ -113,6 +113,21 @@ Target user experience: Code Space should be a one-click starter. The user shoul
 
 # CURRENT IMPLEMENTED STATE
 
+## Dispatch Inbox import preview — 11 Aug 2026
+
+- Added a browser-local Dispatch Inbox separate from Code Space runtime, project, editor, and code-server controls.
+- User-selected `.json` files are parsed and accepted only when `format` is `office-dispatch-package`, `version` is `1`, and `packageStatus` is `Ready`.
+- Required strings, worker data, timestamp, permission groups, and all five known capabilities are validated before activation.
+- Unknown capabilities, malformed JSON, missing permission groups, incomplete capability classification, and allow/deny conflicts are rejected. Conflicts are rejected rather than normalized, as the safer boundary.
+- Accepted data is copied into local browser inbox storage and rendered as display-only, escaped metadata. `sandboxTarget` is never opened or used as a filesystem path.
+- The Dispatch Inbox contains no worker launch, terminal, file mutation, connector, Office, Memory, or external-service behavior.
+- Added disposable validation tests for valid v1 Ready input, wrong format/version/status, malformed JSON, missing worker/permissions, unknown capability, conflict, and source-mutation independence.
+
+### Dispatch Inbox verification state
+
+- Source review and static asset checks are required for this patch.
+- Browser file-picker interaction and Node tests require local runtime confirmation in the target environment.
+
 Implemented on 10 Aug 2026:
 
 - responsive Code Space wrapper/dashboard

@@ -21,6 +21,7 @@
       <p class="tagline">Your coding universe.<br>All your projects. One space.</p>
       <nav class="side-links" aria-label="Code Space navigation">
         <button class="side-link active" data-view="home"><span class="side-icon">⌂</span><span><strong>Code Space</strong><small>Projects and workspaces</small></span><b>›</b></button>
+        <button class="side-link" data-view="dispatch"><span class="side-icon">⇩</span><span><strong>Dispatch Inbox</strong><small>Validate Office handoff files</small></span><b>›</b></button>
         <button class="side-link" data-view="settings"><span class="side-icon">⚙</span><span><strong>Settings</strong><small>code-server connection</small></span><b>›</b></button>
       </nav>
       <div class="sidebar-spacer"></div>
@@ -96,6 +97,20 @@
         <div class="settings-actions"><button class="button secondary" id="testSettingsButton">Refresh status</button><button class="button primary" id="saveSettingsButton">Save</button></div>
       </div>
     </section>
+
+    <section class="dispatch-inbox-view" id="dispatchInboxView" hidden>
+      <header class="topbar settings-topbar"><div><p class="eyebrow purple">Dispatch Inbox</p><h2>Import Package</h2><p>Validate a local Office handoff file before any future execution workflow exists.</p></div></header>
+      <div class="dispatch-boundary"><span>◈</span><div><strong>Validated package only — nothing has been executed.</strong><p>Imported instructions, labels, IDs, and sandbox target metadata are treated as display-only data.</p></div></div>
+      <section class="dispatch-import-card">
+        <div><p class="eyebrow purple">Local file</p><h3>Choose an Office dispatch package</h3><p>Only Ready <code>office-dispatch-package</code> version 1 JSON files are accepted.</p></div>
+        <div class="dispatch-file-actions"><label class="button secondary file-picker">Choose .json<input id="dispatchFileInput" type="file" accept="application/json,.json" hidden></label><span id="dispatchFileName">No file selected</span><button class="button primary" id="importDispatchButton">Validate &amp; import</button></div>
+        <p class="dispatch-message" id="dispatchMessage" role="status"></p>
+      </section>
+      <div class="dispatch-inbox-grid">
+        <section class="dispatch-package-list"><div class="section-heading row-heading"><div><p class="eyebrow purple">Inbox</p><h3>Imported packages</h3></div></div><div id="dispatchList"></div></section>
+        <section class="dispatch-package-preview" id="dispatchPreview"></section>
+      </div>
+    </section>
   </main>
 
   <dialog class="modal" id="projectDialog">
@@ -110,6 +125,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=4" defer></script>
+  <script src="./dispatch-package.js?v=1" defer></script>
+  <script src="./dispatch-inbox.js?v=1" defer></script>
+  <script src="./app.js?v=5" defer></script>
 </body>
 </html>
