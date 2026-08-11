@@ -49,14 +49,27 @@
 
   function resultRows(result) {
     if (!result) return '';
+    const files = Array.isArray(result.filesInspected) ? result.filesInspected : [];
+    const tests = Array.isArray(result.testsRun) ? result.testsRun : [];
+    const fileNames = files.map((item) => typeof item === 'string' ? item : item?.name).filter(Boolean);
+    const testLines = tests.map((item) => {
+      if (typeof item === 'string') return item;
+      const state = item?.passed === true ? 'PASS' : item?.passed === false ? 'FAIL' : 'UNKNOWN';
+      return `${item?.command || item?.file || 'Approved test'} — ${state}`;
+    });
+    const errors = Array.isArray(result.errors) ? result.errors.filter(Boolean) : [];
     return `
       <dl class="dispatch-task-facts">
         <div><dt>Task ID</dt><dd>${escapeHtml(result.taskId)}</dd></div>
         <div><dt>Status</dt><dd>${escapeHtml(result.status)}</dd></div>
-        <div><dt>Files inspected</dt><dd>${result.filesInspected.length}</dd></div>
-        <div><dt>Tests run</dt><dd>${result.testsRun.length}</dd></div>
+        <div><dt>Files inspected</dt><dd>${files.length}</dd></div>
+        <div><dt>Tests run</dt><dd>${tests.length}</dd></div>
       </dl>
-      <p class="dispatch-task-summary">${escapeHtml(result.summary)}</p>`;
+      ${fileNames.length ? `<p class="dispatch-task-summary"><strong>Files:</strong> ${fileNames.map(escapeHtml).join(' · ')}</p>` : ''}
+      ${testLines.length ? `<p class="dispatch-task-summary"><strong>Tests:</strong> ${testLines.map(escapeHtml).join(' · ')}</p>` : ''}
+      <p class="dispatch-task-summary">${escapeHtml(result.summary)}</p>
+      ${result.proposedResult ? `<p class="dispatch-task-summary"><strong>Proposed handoff:</strong> ${escapeHtml(result.proposedResult)}</p>` : ''}
+      ${errors.length ? `<p class="dispatch-task-summary"><strong>Errors:</strong> ${errors.map(escapeHtml).join(' · ')}</p>` : ''}`;
   }
 
   function enhancePreview() {
@@ -78,14 +91,16 @@
         <span class="dispatch-task-state" data-state="${escapeHtml(status.toLowerCase())}">${escapeHtml(status)}</span>
       </div>
       <p class="dispatch-task-copy">${status === 'Ready'
-        ? 'Nothing has been executed. Start Task records a mock lifecycle only.'
-        : 'A mock lifecycle record exists. No files, tests, commands, agents, external services, or Office connections were used.'}</p>
+        ? 'Nothing has been executed. Start Task runs the mediated read/test worker only.'
+        : status === 'Running'
+          ? 'The read-only worker is running inside the granted sandbox boundary.'
+          : 'A persisted task result exists. No file-modification or terminal capability was granted.'}</p>
       <div class="dispatch-runner-grant"><strong>Runner grant</strong><span>${grantedLabels.length ? grantedLabels.map(escapeHtml).join(' · ') : 'No capabilities granted'}</span></div>
       ${resultRows(result)}
       <div class="dispatch-task-actions">
         ${status === 'Running'
-          ? `<button type="button" class="button primary" data-complete-mock-task="${escapeHtml(result.taskId)}">Complete mock task</button>`
-          : `<button type="button" class="button primary" data-start-mock-task="${escapeHtml(item.packageId)}">Start Task (mock)</button>`}
+          ? '<button type="button" class="button primary" disabled>Task running…</button>'
+          : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">Start Task (read/test)</button>`}
       </div>`;
     preview.appendChild(section);
   }
@@ -100,29 +115,40 @@
     enhance();
   }
 
-  document.addEventListener('click', (event) => {
-    const startButton = event.target.closest('[data-start-mock-task]');
-    if (startButton) {
-      const item = packages().find((candidate) => candidate.packageId === startButton.dataset.startMockTask);
-      if (!item) return;
-      try {
-        const session = window.CodeSpaceDispatchRunner.startMock(item);
-        window.CodeSpaceDispatchResults.start(item, session);
-        rerenderExecutionOnly();
-      } catch (error) {
-        console.error('Could not start mock task lifecycle:', error);
-      }
-      return;
-    }
+  async function runRealTask(item) {
+    const grant = window.CodeSpaceDispatchRunner.createGrant(item);
+    window.CodeSpaceDispatchRunner.assertAllowed(grant, 'readFiles');
+    window.CodeSpaceDispatchRunner.assertAllowed(grant, 'runTests');
+    window.CodeSpaceDispatchRunner.assertAllowed(grant, 'proposeResult');
+    if (window.CodeSpaceDispatchRunner.has(grant, 'modifyFiles')) throw new Error('Read-only worker refuses Modify files.');
+    if (window.CodeSpaceDispatchRunner.has(grant, 'useTerminal')) throw new Error('Read-only worker refuses Use terminal.');
 
-    const completeButton = event.target.closest('[data-complete-mock-task]');
-    if (completeButton) {
-      try {
-        window.CodeSpaceDispatchResults.complete(completeButton.dataset.completeMockTask);
-        rerenderExecutionOnly();
-      } catch (error) {
-        console.error('Could not complete mock task lifecycle:', error);
-      }
+    const result = window.CodeSpaceDispatchResults.startReal(item, grant);
+    rerenderExecutionOnly();
+
+    try {
+      const response = await fetch('/api/dispatch/run-readonly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: item })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || `Worker returned HTTP ${response.status}`);
+      window.CodeSpaceDispatchResults.completeReal(result.taskId, data);
+    } catch (error) {
+      window.CodeSpaceDispatchResults.fail(result.taskId, error?.message || 'Read-only worker failed.');
+      console.error('Could not run read-only dispatch task:', error);
+    }
+    rerenderExecutionOnly();
+  }
+
+  document.addEventListener('click', (event) => {
+    const startButton = event.target.closest('[data-start-real-task]');
+    if (startButton) {
+      const item = packages().find((candidate) => candidate.packageId === startButton.dataset.startRealTask);
+      if (!item) return;
+      startButton.disabled = true;
+      runRealTask(item).catch((error) => console.error('Could not start read-only task:', error));
       return;
     }
 
