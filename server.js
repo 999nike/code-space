@@ -8,6 +8,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { execFile, spawn } = require('node:child_process');
 const { promisify } = require('node:util');
+const { listOfficeProjects } = require('./office-project-catalog.js');
 
 const execFileAsync = promisify(execFile);
 const HOST = '127.0.0.1';
@@ -16,6 +17,7 @@ const ROOT = path.resolve(process.env.CODE_SPACE_WORKSPACES || 'E:\\WIZZ-Server\
 const CODE_SERVER_URL = String(process.env.CODE_SERVER_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
 const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || 'code-server').trim();
 const APP_ROOT = __dirname;
+const OFFICE_ORIGIN = 'http://127.0.0.1:4176';
 const MAX_BODY = 128 * 1024;
 let codeServerProcess = null;
 let codeServerStartPromise = null;
@@ -41,6 +43,12 @@ function json(res, status, value) {
     'Cache-Control': 'no-store'
   });
   res.end(body);
+}
+
+function officeCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', OFFICE_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Vary', 'Origin');
 }
 
 function safeError(error) {
@@ -254,6 +262,20 @@ async function runtimeStatus() {
 }
 
 async function handleApi(req, res, pathname) {
+  if (pathname === '/api/office/projects') {
+    if (req.headers.origin !== OFFICE_ORIGIN) {
+      return json(res, 403, { error: 'Office project catalog is restricted to the local Office origin' });
+    }
+    officeCors(res);
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      return res.end();
+    }
+    if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+    const projects = await listOfficeProjects({ root: ROOT, appRoot: APP_ROOT, readdir: fsp.readdir });
+    return json(res, 200, { projects });
+  }
+
   if (pathname === '/api/status' && req.method === 'GET') {
     return json(res, 200, await runtimeStatus());
   }
