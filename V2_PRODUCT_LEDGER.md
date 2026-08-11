@@ -1,6 +1,6 @@
 # Code Space V2 Product Ledger
 
-**Updated:** 10 Aug 2026 — embedded Code Space editor proven
+**Updated:** 11 Aug 2026 — Dispatch Inbox + safe mock worker lifecycle verified end to end
 
 This is the active build / handoff ledger for:
 
@@ -12,7 +12,7 @@ Keep this file short, factual and current. Update it after meaningful tested mil
 
 ---
 
-## AUTHORITATIVE PRODUCT SPLIT
+# AUTHORITATIVE PRODUCT SPLIT
 
 ```text
 Memory Space
@@ -22,343 +22,328 @@ Memory Space
 = existing bridges stay there
 = do not rebuild, move or refactor its working systems
 
+Office App
+= job / worker / dispatch control surface
+= creates bounded dispatch packages for workers
+
 Code Space
 999nike/code-space
 = separate local coding workspace
-= browser/app wrapper around code-server
-= active development repo
+= receives validated Office dispatch packages
+= active development repo for coding execution
 
-Memory Graph
-999nike/memory-graph
-= future visual memory/project graph
-
-Memory Connector
-999nike/memory-connector
-= future minimal app-to-app / connection status layer
-= does not replace or move the existing Memory App bridge
+Memory Graph / Connector
+= later bolt-on apps
 ```
 
-### Current override
-
-Earlier V2 planning said there would be no separate Code Space app and referred to `wizz-workspace` as the next repo. That direction has now changed explicitly.
-
-**The current active coding product is `999nike/code-space`.**
-
-Do not resurrect the old `no Code Space` rule in future development chats.
+**Do not modify Memory Space for Code Space work.**
 
 ---
 
 # CODE SPACE PURPOSE
 
-Code Space is primarily for the owner's own coding workflow. It is not being designed first as a polished commercial IDE product.
-
-The goal is to combine proven programs into one app-like local coding environment instead of rebuilding an IDE from scratch.
+Code Space is the coding execution workspace.
 
 Core model:
 
 ```text
-CODE SPACE
-browser/app shell
-      |
-      +-- Home / projects
-      +-- New Project
-      +-- Open Existing
-      +-- Clone Repository
-      +-- recent workspaces
+OFFICE
+creates job + worker + permission snapshot
       |
       v
-EMBEDDED CODE MODE
+DISPATCH PACKAGE
+      |
+      v
+CODE SPACE DISPATCH INBOX
+validate only
+      |
+      v
+EXPLICIT START TASK BOUNDARY
+      |
+      v
+SCOPED WORKER
+      |
+      v
+RESULT / HANDOFF
+```
+
+Code Space also remains the local wrapper around code-server:
+
+```text
+Code Space shell
+      |
+      +-- projects
+      +-- Dispatch Inbox
+      +-- embedded Code Mode
       |
       v
 code-server
       |
       +-- real local project folder
-      +-- VS Code browser editor
+      +-- editor
       +-- terminal
-      +-- extensions
       +-- Git
-      +-- AI CLI workers
+      +-- future AI CLI worker
 ```
 
-**code-server is the coding engine. Code Space is the wrapper / orchestrator / skin around it.**
-
-Do not waste time recreating code-server features that already work.
+**code-server is the coding engine. Code Space is the wrapper / orchestrator / permission boundary.**
 
 ---
 
-# UX RULE
+# CURRENT VERIFIED STATE
 
-The Code Space home/wrapper should use the same general visual family as Memory Space: dark app shell, rounded panels, purple/blue glow accents and clear app-like navigation.
+## Embedded Code Space baseline — VERIFIED
 
-The wrapper remains visible while coding. When actual coding starts, **code-server loads inside the lower Code Space workspace panel**. The dashboard, sidebar and status rail remain available around it.
+On the HP:
 
-```text
-Code Space Home
-     |
-     | Start Coding / Open project
-     v
-Code Space starts local code-server if needed
-     |
-     v
-Embedded code-server panel
-     |
-     | Exit Code Mode / close panel
-     v
-Code Space Home
-```
+- Code Space runtime runs locally on `http://127.0.0.1:8090`.
+- code-server runs through WSL Ubuntu on `http://127.0.0.1:8080`.
+- Code Space can start/reuse code-server automatically.
+- Real project folders open in the embedded code-server panel.
+- Dashboard/sidebar/status rail remain visible around the editor.
+- Open Separately fallback works.
+- Exit Code Mode returns to the dashboard.
 
-Target user experience: Code Space should be a one-click starter. The user should not need to manually start a terminal and code-server for normal use once the runtime path is complete.
+Do not reopen the old fullscreen/loader/WSL installation work without new evidence.
 
 ---
 
-# CURRENT IMPLEMENTED STATE
+## Office -> Code Space Dispatch Inbox — VERIFIED 11 Aug 2026
 
-## Dispatch Inbox import preview — 11 Aug 2026
+The Office dispatch package boundary has now been manually tested on the HP.
 
-- Added a browser-local Dispatch Inbox separate from Code Space runtime, project, editor, and code-server controls.
-- User-selected `.json` files are parsed and accepted only when `format` is `office-dispatch-package`, `version` is `1`, and `packageStatus` is `Ready`.
-- Required strings, worker data, timestamp, permission groups, and all five known capabilities are validated before activation.
-- Unknown capabilities, malformed JSON, missing permission groups, incomplete capability classification, and allow/deny conflicts are rejected. Conflicts are rejected rather than normalized, as the safer boundary.
-- Accepted data is copied into local browser inbox storage and rendered as display-only, escaped metadata. `sandboxTarget` is never opened or used as a filesystem path.
-- The Dispatch Inbox contains no worker launch, terminal, file mutation, connector, Office, Memory, or external-service behavior.
-- Added disposable validation tests for valid v1 Ready input, wrong format/version/status, malformed JSON, missing worker/permissions, unknown capability, conflict, and source-mutation independence.
-
-### Dispatch Inbox verification state
-
-- Source review and static asset checks are required for this patch.
-- Browser file-picker interaction and Node tests require local runtime confirmation in the target environment.
-
-Implemented on 10 Aug 2026:
-
-- responsive Code Space wrapper/dashboard
-- Quick Start cards
-- New Project flow
-- Clone Repository flow
-- Open Existing flow
-- recent workspace list
-- recent activity list
-- local Code Space Node runtime on `http://127.0.0.1:8090`
-- approved workspace root `E:\WIZZ-Server\workspaces`
-- real local project listing/runtime operations started
-- New Project, Open Existing and Clone Repository forms accept the appropriate path inputs
-- successful project actions now continue into the selected embedded workspace
-- configurable code-server URL
-- code-server target `http://127.0.0.1:8080`
-- code-server reachability check
-- embedded Code Mode workspace panel below the dashboard
-- Open Separately fallback
-- Exit Code Mode hides the embedded editor and returns to the dashboard view
-- Git/runtime status support
-- one-click Start Coding route launches or reuses code-server automatically
-
-### Embedded editor milestone — VERIFIED
-
-The intended visual result is now working on the HP:
-
-- Code Space dashboard remains visible.
-- Sidebar and system-status rail remain visible.
-- The real code-server editor loads in the lower embedded workspace panel.
-- The editor is not forced into a full-screen takeover.
-- Open Separately remains available as a fallback.
-- The code-server editor, terminal, extensions and project filesystem remain provided by code-server.
-
-This is the current Code Space baseline. Do not restore the earlier full-screen design unless the owner explicitly changes the product direction.
-
-### Known-good fallback checkpoint
-
-Before the next project-workflow patch, preserve this tested state:
+Verified valid package:
 
 ```text
-HP-tested GitHub baseline: 201fa1d
-Local source checkpoint:    a622a9e
+Job: Sandbox UI Flow Test
+Worker: Test Worker Alpha
+Sandbox target: office-app
+Package status: Ready
 ```
 
-`201fa1d` is the last embedded-editor version confirmed working on the HP. If the next patch causes trouble, return to that published baseline before investigating further. Do not force-push or delete the checkpoint.
-
-### Local coding engine established
-
-The HP Windows machine now has:
+Permission snapshot shown correctly:
 
 ```text
-Windows 11
-  |
-  +-- WSL2
-       |
-       +-- Ubuntu 26.04 LTS
-            user: wizz
-            |
-            +-- code-server 4.132.0
+Read files                 Allowed
+Run tests                  Allowed
+Propose result / handoff   Allowed
+Modify files               Explicitly denied
+Use terminal               Not granted
 ```
 
-Verified manually from Windows PowerShell:
+Verified behavior:
+
+- valid Office v1 Ready package imports successfully
+- package metadata and permissions display correctly
+- importing/selecting performs no execution
+- accepted package survives browser refresh
+- changing package `version` from `1` to `2` is rejected
+- rejected v2 package does not disturb the previously accepted package
+- validator rejects malformed / incomplete / conflicting capability packages
+- `sandboxTarget` remains metadata during import and is not automatically opened or executed
+
+Important commit bringing the locally tested Dispatch Inbox to GitHub:
 
 ```text
-wsl -d Ubuntu -- bash -lc "command -v code-server; code-server --version"
-/usr/bin/code-server
-4.132.0
+7545412 — Add validated Dispatch Inbox
 ```
-
-Verified manual launch command:
-
-```text
-wsl -d Ubuntu -- bash -lc "code-server --bind-addr 0.0.0.0:8080"
-```
-
-When that command remains running, Windows can reach code-server at:
-
-```text
-http://127.0.0.1:8080
-```
-
-and `curl.exe -I http://127.0.0.1:8080` returned HTTP 302 to `./login`, proving the Windows-to-WSL route works.
-
-### Automatic launch and embedded handoff — VERIFIED
-
-The automatic launch and embedded handoff are now proven. `server.js` launches or reuses WSL code-server, waits for the local service, and the Code Space UI loads the editor into the dashboard panel.
-
-The current direct WSL command model is:
-
-```text
-wsl.exe -d Ubuntu -- bash -lc "exec code-server --bind-addr 0.0.0.0:8080"
-```
-
-Verified result:
-
-- Code Space runtime starts successfully on port 8090.
-- Start Coding starts or detects code-server on port 8080.
-- The embedded editor loads in the lower dashboard panel.
-- The loading cover clears and does not trap the user on `Starting Code Space...`.
-- The separate-browser fallback still works.
-
-The startup/readiness and embedded-loader debugging phase is complete. Do not reinstall WSL or code-server, and do not reopen the old fullscreen handoff issue without new evidence.
 
 ---
 
-# CURRENT MACHINE SERVICES — KEEP SEPARATE
+## Safe execution boundary / mock worker lifecycle — VERIFIED 11 Aug 2026
 
-The HP also runs unrelated existing services. Do not confuse these with Code Space or replace them.
+Code Space now has the next safety layer after import.
 
-Manual restart commands currently used by owner:
+Added:
+
+- explicit `Start Task (mock)` action
+- import/select remains passive
+- frozen permission snapshot remains visible before start
+- runner receives an allow-list derived only from `capabilities.allowed`
+- denied / not-granted capabilities fail closed
+- structured task/result records persisted locally
+- lifecycle state: `Ready -> Running -> Completed / Failed`
+- files inspected / tests run / summary / timestamps / denials / errors fields are available in result state
+- mock lifecycle has no filesystem, terminal, command, agent, external-service or Office execution API
+
+For the verified test package the runner grant contained only:
+
+```text
+Read files
+Run tests
+Propose result / handoff
+```
+
+It did **not** contain:
+
+```text
+Modify files
+Use terminal
+```
+
+### Automated test result — VERIFIED locally
+
+Command:
 
 ```powershell
-cd E:\WIZZ-Server
-caddy run --config Caddyfile
+node --test
 ```
 
-Media server:
+Result:
 
-```powershell
-cd E:\WIZZ-Server\media
-npx.cmd http-server -p 8081 -a 127.0.0.1
+```text
+9 tests
+9 pass
+0 fail
 ```
 
-Code Space runtime:
+Tests covered:
+
+- valid Office v1 Ready package
+- malformed / contract rejection
+- unknown/conflicting capability rejection
+- accepted package independence from later source mutation
+- persisted passive Running result record
+- completion updates same result record
+- runner grant exposes only allowed capabilities
+- denied/not-granted capabilities fail closed
+- mock start contains no execution APIs
+
+`npm test` originally failed because the package script used `node --test test` with the current Node v24 runtime. GitHub was corrected so the script now uses `node --test`.
+
+### Manual browser lifecycle — VERIFIED
+
+Observed on HP:
+
+```text
+Ready
+  -> Start Task (mock)
+Running
+  -> Complete mock task
+Completed
+  -> browser refresh
+Completed still present
+```
+
+Verified during lifecycle:
+
+- same task ID persisted
+- files inspected stayed `0`
+- tests run stayed `0`
+- runner grant remained limited to the three allowed capabilities
+- UI explicitly stated that no files, commands, agents, external services or Office connections were used
+- Completed state survived full browser refresh
+
+Current latest safety-layer work is on `main` after the Dispatch Inbox commit.
+
+---
+
+# CURRENT MACHINE / REPO STATE
+
+Code Space repo:
+
+```text
+E:\WIZZ-Server\workspaces\code-space
+https://github.com/999nike/code-space.git
+```
+
+Runtime:
 
 ```powershell
 cd E:\WIZZ-Server\workspaces\code-space
 node server.js
 ```
 
-These are currently manually managed during development.
+Tests:
+
+```powershell
+node --test
+```
+
+If PowerShell blocks `npm.ps1`, use:
+
+```powershell
+npm.cmd test
+```
+
+Do not change PowerShell execution policy merely to run npm.
 
 ---
 
-# NEXT BUILD TARGET
+# NEXT BUILD TARGET — FIRST REAL WORKER JOURNEY
 
-The one-click embedded coding baseline is complete. The next build stage is the real project workflow inside that baseline.
+The no-op boundary is complete and verified.
 
-Immediate order:
+The next target is **not** another mock. It is the first real, tiny, disposable worker task.
+
+A separate disposable sandbox has been created for this purpose rather than pointing the first worker at Office or Code Space itself.
+
+Use only tiny test code, for example:
 
 ```text
-1. Start Code Space runtime on 8090
-2. User creates, opens or clones a real project
-3. Show the project in the recent-workspaces dashboard
-4. User presses Start Coding / opens that project
-5. Load the selected project in the embedded code-server panel
-6. User codes normally with editor, terminal and Git available
-7. Exit Code Mode returns to the dashboard view
+agent-sandbox-test/
+  math.js
+  math.test.js
 ```
 
-Current next priority:
+First real task should be approximately:
 
-- test the automatic New Project handoff on the HP with a disposable project name
-- test Open Existing against a known local folder
-- test Clone Repository against a safe repository and confirm the checkout opens in the embedded editor
-- keep the dashboard layout and embedded panel intact while adding these flows
-- do not change the proven Ubuntu/code-server installation unless evidence requires it
+```text
+Read math.js.
+Inspect math.test.js.
+Run the approved test.
+Report what the code does and whether the test passes.
+Do not modify any files.
+```
 
-After this loop is proven:
+Required first real worker permissions:
 
-1. project listing/create-folder
-2. clone/open flows
-3. Git status + safe pull
-4. one AI CLI inside the same project working directory
-5. minimal Connector integration only later
+```text
+Read files                 Allowed
+Run tests                  Allowed
+Propose result / handoff   Allowed
+Modify files               Explicitly denied
+Use terminal               Not granted
+```
+
+Target path:
+
+```text
+Office
+  -> create tiny sandbox job
+  -> assign worker
+  -> freeze permissions
+  -> export/send dispatch package
+Code Space
+  -> validate package
+  -> user explicitly starts worker
+  -> worker reads only sandbox files
+  -> worker runs only approved test path
+  -> worker cannot modify files
+  -> worker returns structured result
+  -> task stops
+```
+
+**Do not grant Modify files in the first real worker test.**
+
+After the read/test/result loop is proven, a later second disposable test may explicitly grant Modify files for one tiny controlled change.
 
 ---
 
-# GIT DIRECTION
+# SECURITY / EXECUTION RULES — KEEP THESE
 
-Git should be added progressively.
-
-First stage:
-
-```text
-status
-branch
-remote
-pull when clean
-```
-
-Safety rule:
-
-```text
-open workspace
-    -> git status
-    -> clean? safe pull may run
-    -> local changes? DO NOT blind-pull
-    -> surface status to user
-```
-
-Do not silently commit or push code in the first build.
-
----
-
-# AI CLI DIRECTION
-
-AI should live **inside the coding environment**, not as a fake browser chat that receives pasted code.
-
-The important architecture is that editor, terminal, Git and AI CLI all work against the same real project folder.
-
-Concept:
-
-```text
-project folder
-    |
-    +-- code-server editor
-    +-- terminal
-    +-- Git
-    +-- AI CLI
-```
-
-One AI worker/repo at a time is the preferred development discipline during the current multi-AI experiment.
-
----
-
-# MEMORY SPACE / CONNECTOR BOUNDARY
-
-Memory Space has **nothing to do with the first Code Space build**.
-
-Do not add Memory Space UI, memory tools, Memory Bridge code or cross-app permissions into Code Space while building the basic coding product.
-
-Later, applications should be able to connect through the minimal Connector layer.
-
-```text
-Apps work independently first.
-Connector links them later with the smallest useful permission contract.
-```
-
-Connector does not move bridge code out of Memory App.
+- importing a dispatch package must never execute it
+- selecting a package must never execute it
+- execution requires explicit user Start action
+- capabilities are an allow-list, not hints
+- anything denied or not granted must not be supplied to the runner
+- display permission is not enough; enforcement must exist in code
+- sandbox target metadata must not become arbitrary filesystem authority
+- worker must be constrained to the task sandbox
+- no automatic Git push
+- no silent permission escalation
+- no real worker should gain terminal/filesystem authority merely because code-server itself has those capabilities
+- result/handoff is separate from authority to mutate code
 
 ---
 
@@ -367,21 +352,19 @@ Connector does not move bridge code out of Memory App.
 Do not:
 
 - modify `999nike/memory-app`
-- move existing bridge functionality
-- rebuild VS Code/editor functionality
-- reinstall WSL/code-server merely because the automatic handoff fails
-- disturb Caddy/media services while debugging Code Space
-- build a fake chat-based grep IDE
-- force Memory Space into Code Space before Code Space works independently
-- build Graph or Connector features in this repo
-- add dangerous automatic Git push behaviour before status/diff safety exists
+- move Memory Bridge functionality
+- involve Memory Space in this first worker execution test
+- point the first real worker at Office App or Code Space itself
+- grant Modify files for the first real test
+- grant unrestricted terminal access
+- let imported package data directly call Node/filesystem/terminal APIs
+- redesign Code Space while proving the worker boundary
+- add automatic Git push/merge behavior
 
 ---
 
 # GUIDING PRINCIPLE
 
-**Code Space is where the project gets built.**
+**Office decides the job. Code Space enforces the job. The worker only gets the capabilities explicitly granted for that task.**
 
-Use boring, proven engines underneath it and make the surrounding workflow yours.
-
-The wrapper should make code-server, local folders, terminal, Git and AI workers feel like one coherent coding application without rebuilding those tools from scratch.
+The first real proof is deliberately small: read a disposable file, run one approved test, return a result, stop.
