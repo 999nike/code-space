@@ -42,7 +42,7 @@
       const badge = button.querySelector('.dispatch-ready');
       if (!badge) return;
       const status = result?.status || 'Ready';
-      badge.textContent = status;
+      if (badge.textContent !== status) badge.textContent = status;
       badge.dataset.taskState = status.toLowerCase();
     });
   }
