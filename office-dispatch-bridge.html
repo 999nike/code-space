@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Code Space Dispatch Bridge</title>
+</head>
+<body>
+  <script src="./dispatch-package.js?v=1"></script>
+  <script src="./dispatch-inbox.js?v=2"></script>
+  <script src="./dispatch-queue.js?v=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const OFFICE_ORIGIN = 'http://127.0.0.1:4176';
+
+      window.addEventListener('message', (event) => {
+        if (event.origin !== OFFICE_ORIGIN || event.data?.type !== 'office-dispatch-submit-v1') return;
+
+        const requestId = String(event.data?.requestId || '');
+        const incoming = event.data?.packages;
+        try {
+          if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > 10) {
+            throw new Error('Office dispatch must contain 1 to 10 packages.');
+          }
+
+          const accepted = incoming.map((item) => window.CodeSpaceDispatchPackage.validate(item));
+          accepted.forEach((item) => {
+            window.CodeSpaceDispatchInbox.add(item);
+            window.CodeSpaceDispatchQueue?.enqueue?.(item);
+          });
+
+          event.source?.postMessage({
+            type: 'code-space-dispatch-ack-v1',
+            requestId,
+            ok: true,
+            packageIds: accepted.map((item) => item.packageId)
+          }, event.origin);
+        } catch (error) {
+          event.source?.postMessage({
+            type: 'code-space-dispatch-ack-v1',
+            requestId,
+            ok: false,
+            error: String(error?.message || 'Code Space rejected the Office dispatch.')
+          }, event.origin);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
