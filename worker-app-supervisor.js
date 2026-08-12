@@ -148,7 +148,7 @@ async function ensureCodeServer() {
   return { running: await waitFor(SERVICES.codeServer.port, 30000), started: true, pid };
 }
 
-function openUrl(url) {
+function openBrowserTab(url) {
   if (process.env.WORKER_APP_NO_BROWSER === '1' || process.platform !== 'win32') return;
   const child = spawn('cmd.exe', ['/c', 'start', '', url], {
     detached: true,
@@ -176,8 +176,11 @@ async function main() {
   log(`Code Space ${codeSpace.running ? 'ready' : 'FAILED'} at ${SERVICES.codeSpace.url}`);
   log(`Office ${office.running ? 'ready' : 'FAILED'} at ${SERVICES.office.url}`);
 
-  if (office.running) openUrl(SERVICES.office.url);
-  if (codeSpace.running) openUrl(SERVICES.codeSpace.url);
+  // Open Code Space first. Its initial document claims the `code-space`
+  // browsing-context name, which Office dispatches reuse instead of creating
+  // another tab. The launcher never starts services during dispatch.
+  if (codeSpace.running) openBrowserTab(SERVICES.codeSpace.url);
+  if (office.running) openBrowserTab(SERVICES.office.url);
 
   const codeServer = await ensureCodeServer();
   log(`code-server ${codeServer.running ? 'ready' : 'FAILED'} at ${SERVICES.codeServer.url}`);

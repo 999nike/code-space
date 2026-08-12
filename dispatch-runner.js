@@ -29,6 +29,11 @@
     return Boolean(grant?.capabilities?.[capabilityKey]);
   }
 
+  function isCodexWorker(packageSnapshot) {
+    return String(packageSnapshot?.worker?.id || '').trim() === 'builtin:codex'
+      || String(packageSnapshot?.worker?.name || '').trim() === 'Codex';
+  }
+
   function assertAllowed(grant, capabilityKey) {
     if (!has(grant, capabilityKey)) reject(`Capability not granted: ${capabilityKey}.`, capabilityKey);
     return true;
@@ -46,5 +51,5 @@
   }
 
   const scope = typeof window === 'undefined' ? globalThis : window;
-  scope.CodeSpaceDispatchRunner = Object.freeze({ createGrant, has, assertAllowed, startMock });
+  scope.CodeSpaceDispatchRunner = Object.freeze({ createGrant, has, assertAllowed, isCodexWorker, startMock });
 })();

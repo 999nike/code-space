@@ -152,13 +152,45 @@
     }));
   }
 
+  function startCodex(packageSnapshot, grant) {
+    if (!packageSnapshot || !grant) throw new Error('A validated package and runner grant are required.');
+    const record = baseRecord(packageSnapshot, grant, 'Codex worker started inside the frozen sandbox and permission boundary.');
+    record.testsRequested = grant.capabilities.runTests ? ['Codex may run tests because the frozen package grants it.'] : [];
+    write([record, ...read()]);
+    return structuredClone(record);
+  }
+
+  function completeCodex(taskId, output) {
+    if (!output || output.mode !== 'codex-worker') throw new Error('Codex worker returned an invalid result.');
+    const succeeded = output.exitCode === 0 && output.timedOut !== true;
+    return update(taskId, (record) => ({
+      ...record,
+      status: succeeded ? 'Completed' : 'Failed',
+      summary: String(output.summary || 'Codex worker completed.'),
+      filesInspected: Array.isArray(output.filesInspected) ? structuredClone(output.filesInspected) : [],
+      proposedResult: output.proposedResult ? String(output.proposedResult) : null,
+      completedAt: output.completedAt || new Date().toISOString(),
+      codex: {
+        sandboxMode: String(output.sandboxMode || ''),
+        exitCode: Number.isInteger(output.exitCode) ? output.exitCode : null,
+        signal: output.signal ? String(output.signal) : null,
+        timedOut: output.timedOut === true,
+        stdout: String(output.stdout || ''),
+        stderr: String(output.stderr || '')
+      },
+      errors: succeeded ? record.errors : [...(record.errors || []), String(output.stderr || output.summary || 'Codex exited unsuccessfully.')]
+    }));
+  }
+
   function fail(taskId, message) {
     return update(taskId, (record) => ({
       ...record,
       status: 'Failed',
       summary: record?.summary?.startsWith('Mock')
         ? 'Mock worker lifecycle failed before any execution capability was used.'
-        : 'Read-only worker failed inside the mediated execution boundary.',
+        : record?.workerName === 'Codex'
+          ? 'Codex worker failed inside the frozen sandbox and permission boundary.'
+          : 'Read-only worker failed inside the mediated execution boundary.',
       completedAt: new Date().toISOString(),
       errors: [...(record.errors || []), String(message || 'Unknown worker failure')]
     }));
@@ -189,6 +221,8 @@
     completeReal,
     startWrite,
     completeWrite,
+    startCodex,
+    completeCodex,
     fail,
     recordDenial
   });

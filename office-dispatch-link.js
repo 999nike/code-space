@@ -3,6 +3,7 @@
 
   const PENDING_KEY = 'code-space-office-dispatch-pending-v1';
   const WINDOW_NAME = 'code-space';
+  const OFFICE_ORIGIN = 'http://127.0.0.1:4176';
   window.name = WINDOW_NAME;
 
   function decodePackage(value) {
@@ -78,6 +79,7 @@
     try {
       const accepted = window.CodeSpaceDispatchPackage.validate(decodePackage(payload));
       window.CodeSpaceDispatchInbox.add(accepted);
+      window.CodeSpaceDispatchQueue?.enqueue?.(accepted);
       url.searchParams.delete('officeDispatch');
       history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
       window.dispatchEvent(new CustomEvent('code-space:office-dispatch-received', {
@@ -100,6 +102,30 @@
         message.className = 'dispatch-message error';
       }
       return false;
+    }
+  }
+
+  function receiveOfficeBatch(event) {
+    if (event.origin !== OFFICE_ORIGIN || event.data?.type !== 'office-dispatch-batch-v1') return;
+    const incoming = event.data?.packages;
+    if (!Array.isArray(incoming) || incoming.length < 2 || incoming.length > 10) return;
+    try {
+      const accepted = incoming.map((item) => window.CodeSpaceDispatchPackage.validate(item));
+      accepted.forEach((item) => {
+        window.CodeSpaceDispatchInbox.add(item);
+        window.CodeSpaceDispatchQueue?.enqueue?.(item);
+      });
+      markNewJob();
+      dispatchNav()?.click();
+      selectPendingJob(accepted[0].packageId);
+      const toast = document.getElementById('toast');
+      if (toast) {
+        toast.textContent = `${accepted.length} NEW JOBS received from Office`;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3200);
+      }
+    } catch (error) {
+      console.error('Office dispatch batch rejected:', error);
     }
   }
 
@@ -160,6 +186,7 @@
       const packageId = reject.dataset.rejectOfficeJob;
       clearNewJob();
       window.CodeSpaceDispatchInbox.remove(packageId);
+      window.CodeSpaceDispatchQueue?.remove?.(packageId);
       const toast = document.getElementById('toast');
       if (toast) {
         toast.textContent = 'Office job rejected';
@@ -174,6 +201,7 @@
   });
 
   if (!importFromOfficeLink()) openPendingJob();
+  window.addEventListener?.('message', receiveOfficeBatch);
   const observer = new MutationObserver(tuneAuthorisationButtons);
   observer.observe(document.documentElement, { childList: true, subtree: true });
   tuneAuthorisationButtons();

@@ -78,20 +78,31 @@ function resolveSandbox(root, sandboxTarget) {
   return target;
 }
 
+function isDirectFilename(value) {
+  return typeof value === 'string'
+    && value !== '.'
+    && value !== '..'
+    && !value.includes('/')
+    && !value.includes('\\')
+    && path.basename(value) === value;
+}
+
 async function readDirectFiles(target, deps = {}) {
   const readdir = deps.readdir || fs.readdir;
   const readFile = deps.readFile || fs.readFile;
   const stat = deps.stat || fs.stat;
   const entries = await readdir(target, { withFileTypes: true });
   const files = entries
-    .filter((entry) => entry.isFile() && READABLE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+    .filter((entry) => entry.isFile() && isDirectFilename(entry.name) && READABLE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
     .map((entry) => entry.name)
     .sort()
     .slice(0, MAX_FILES);
 
   const inspected = [];
   for (const name of files) {
-    const fullPath = path.join(target, name);
+    const fullPath = path.resolve(target, name);
+    const relative = path.relative(target, fullPath);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative) || path.dirname(fullPath) !== path.resolve(target)) continue;
     const info = await stat(fullPath);
     if (info.size > MAX_FILE_BYTES) continue;
     const content = await readFile(fullPath, 'utf8');
@@ -170,4 +181,4 @@ async function runReadOnlyDispatchTask(packageSnapshot, options = {}) {
   };
 }
 
-module.exports = { assertSafeGrant, resolveSandbox, readDirectFiles, runApprovedTest, runReadOnlyDispatchTask };
+module.exports = { assertSafeGrant, resolveSandbox, isDirectFilename, readDirectFiles, runApprovedTest, runReadOnlyDispatchTask };

@@ -6,6 +6,7 @@
   if (!preview || !list) return;
 
   let queued = false;
+  let queueLoopRunning = false;
 
   function packages() {
     return window.CodeSpaceDispatchInbox?.list?.() || [];
@@ -39,9 +40,10 @@
     list.querySelectorAll('[data-select-dispatch]').forEach((button) => {
       const id = button.dataset.selectDispatch;
       const result = window.CodeSpaceDispatchResults?.latestForPackage?.(id);
+      const queueEntry = window.CodeSpaceDispatchQueue?.read?.().entries.find((entry) => entry.packageId === id);
       const badge = button.querySelector('.dispatch-ready');
       if (!badge) return;
-      const status = result?.status || 'Ready';
+      const status = result?.status || queueEntry?.status || 'Ready';
       if (badge.textContent !== status) badge.textContent = status;
       badge.dataset.taskState = status.toLowerCase();
     });
@@ -76,6 +78,27 @@
       ${errors.length ? `<p class="dispatch-task-summary"><strong>Errors:</strong> ${errors.map(escapeHtml).join(' · ')}</p>` : ''}`;
   }
 
+  function queuePanel(item) {
+    const Queue = window.CodeSpaceDispatchQueue;
+    if (!Queue) return '';
+    const queue = Queue.read();
+    const entry = queue.entries.find((candidate) => candidate.packageId === item.packageId);
+    const queuedEntries = queue.entries.filter((candidate) => candidate.status === 'Queued');
+    const position = entry ? queue.entries.indexOf(entry) + 1 : null;
+    const controls = queue.status === 'Running'
+      ? '<button type="button" class="button secondary" data-pause-codex-queue>Pause after current task</button><button type="button" class="button secondary" data-stop-codex-queue>Stop queued tasks</button>'
+      : queuedEntries.length
+        ? `<button type="button" class="button primary" data-authorise-codex-queue>${queue.status === 'Paused' ? 'Resume queue' : 'Authorise & Start queue'}</button><button type="button" class="button secondary" data-stop-codex-queue>Stop queued tasks</button>`
+        : '';
+    const reorder = entry?.status === 'Queued' && queue.status !== 'Running'
+      ? `<span class="dispatch-queue-order"><button type="button" data-move-codex-queue="-1" data-queue-package="${escapeHtml(item.packageId)}" aria-label="Move job earlier">↑</button><button type="button" data-move-codex-queue="1" data-queue-package="${escapeHtml(item.packageId)}" aria-label="Move job later">↓</button></span>`
+      : '';
+    return `<section class="dispatch-queue-panel" data-codex-queue>
+      <div><p class="eyebrow purple">Persistent Codex queue</p><h3>${escapeHtml(queue.status)}</h3><p>${entry ? `Position ${position} · ${escapeHtml(entry.status)}${entry.message ? ` · ${escapeHtml(entry.message)}` : ''}` : 'This Codex package will be added to the queue when authorised.'}</p></div>
+      <div class="dispatch-queue-actions">${reorder}${controls}</div>
+    </section>`;
+  }
+
   function enhancePreview() {
     if (preview.querySelector('[data-dispatch-execution]')) return;
     const item = selectedPackage();
@@ -84,6 +107,7 @@
     const result = window.CodeSpaceDispatchResults?.latestForPackage?.(item.packageId) || null;
     const status = result?.status || 'Ready';
     const grant = window.CodeSpaceDispatchRunner?.createGrant?.(item);
+    const codexTask = window.CodeSpaceDispatchRunner?.isCodexWorker?.(item);
     const writeTask = window.CodeSpaceDispatchRunner?.has?.(grant, 'modifyFiles');
     const grantedLabels = (grant?.allowed || []).map((key) => window.CodeSpaceDispatchPackage.CAPABILITIES[key] || key);
 
@@ -96,18 +120,19 @@
         <span class="dispatch-task-state" data-state="${escapeHtml(status.toLowerCase())}">${escapeHtml(status)}</span>
       </div>
       <p class="dispatch-task-copy">${status === 'Ready'
-        ? writeTask ? 'Nothing has been executed. Authorise & Start runs the single approved write inside the sandbox.' : 'Nothing has been executed. Start Task runs the mediated read/test worker only.'
+        ? codexTask ? 'Nothing has been executed. Authorise & Start runs the selected Codex worker inside the frozen sandbox and permission boundary.' : writeTask ? 'Nothing has been executed. Authorise & Start runs the single approved write inside the sandbox.' : 'Nothing has been executed. Start Task runs the mediated read/test worker only.'
         : status === 'Running'
           ? 'The read-only worker is running inside the granted sandbox boundary.'
           : 'A persisted task result exists. No file-modification or terminal capability was granted.'}</p>
       <div class="dispatch-runner-grant"><strong>Runner grant</strong><span>${grantedLabels.length ? grantedLabels.map(escapeHtml).join(' · ') : 'No capabilities granted'}</span></div>
       ${resultRows(result)}
+      ${codexTask ? queuePanel(item) : ''}
       <div class="dispatch-task-actions">
         ${status === 'Running'
           ? '<button type="button" class="button primary" disabled>Task running…</button>'
           : status === 'Completed'
             ? '<button type="button" class="button primary" disabled>Task completed</button>'
-            : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">${status === 'Failed' ? (writeTask ? 'Retry Task (write)' : 'Retry Task (read/test)') : (writeTask ? 'Start Task (write)' : 'Start Task (read/test)')}</button>`}
+            : `<button type="button" class="button primary" data-start-real-task="${escapeHtml(item.packageId)}">${status === 'Failed' ? (codexTask ? 'Retry Task (Codex)' : writeTask ? 'Retry Task (write)' : 'Retry Task (read/test)') : (codexTask ? 'Start Task (Codex)' : writeTask ? 'Start Task (write)' : 'Start Task (read/test)')}</button>`}
       </div>`;
     preview.appendChild(section);
   }
@@ -122,9 +147,72 @@
     enhance();
   }
 
+  async function executeCodexTask(item) {
+    const grant = window.CodeSpaceDispatchRunner.createGrant(item);
+    const result = window.CodeSpaceDispatchResults.startCodex(item, grant);
+    rerenderExecutionOnly();
+    try {
+      const response = await fetch('/api/dispatch/run-codex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: item })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data?.error || `Worker returned HTTP ${response.status}`);
+        error.statusCode = response.status;
+        throw error;
+      }
+      window.CodeSpaceDispatchResults.completeCodex(result.taskId, data);
+      return { output: data, succeeded: data.exitCode === 0 && data.timedOut !== true };
+    } catch (error) {
+      window.CodeSpaceDispatchResults.fail(result.taskId, error?.message || 'Codex worker failed.');
+      console.error('Could not run Codex dispatch task:', error);
+      return { error, succeeded: false };
+    } finally {
+      rerenderExecutionOnly();
+    }
+  }
+
+  async function runCodexQueue() {
+    if (queueLoopRunning) return;
+    queueLoopRunning = true;
+    try {
+      while (true) {
+        window.CodeSpaceDispatchQueue.claimNext();
+        const entry = window.CodeSpaceDispatchQueue.activeEntry();
+        if (!entry) return;
+        const item = packages().find((candidate) => candidate.packageId === entry.packageId);
+        if (!item) {
+          window.CodeSpaceDispatchQueue.fail(entry.packageId, { blocked: true, message: 'The frozen package is no longer in the local dispatch inbox.' });
+          return;
+        }
+        const outcome = await executeCodexTask(item);
+        if (outcome.succeeded) {
+          window.CodeSpaceDispatchQueue.complete(entry.packageId, outcome.output.summary);
+          continue;
+        }
+        const blocked = Boolean(outcome.error) || entry.modifiesFiles;
+        const message = outcome.error?.message || outcome.output?.summary || 'Codex task failed.';
+        window.CodeSpaceDispatchQueue.fail(entry.packageId, { blocked, message });
+        if (blocked) return;
+      }
+    } finally {
+      queueLoopRunning = false;
+      rerenderExecutionOnly();
+    }
+  }
+
   async function runRealTask(item) {
     const grant = window.CodeSpaceDispatchRunner.createGrant(item);
+    const codexTask = window.CodeSpaceDispatchRunner.isCodexWorker(item);
     const writeTask = window.CodeSpaceDispatchRunner.has(grant, 'modifyFiles');
+    if (codexTask) {
+      window.CodeSpaceDispatchQueue?.remove?.(item.packageId);
+      await executeCodexTask(item);
+      return;
+    }
+
     if (writeTask) {
       window.CodeSpaceDispatchRunner.assertAllowed(grant, 'modifyFiles');
       window.CodeSpaceDispatchRunner.assertAllowed(grant, 'proposeResult');
@@ -174,6 +262,27 @@
   }
 
   document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-authorise-codex-queue]')) {
+      window.CodeSpaceDispatchQueue.authoriseAndStart();
+      runCodexQueue().catch((error) => console.error('Could not run Codex queue:', error));
+      return;
+    }
+    if (event.target.closest('[data-pause-codex-queue]')) {
+      window.CodeSpaceDispatchQueue.pause();
+      rerenderExecutionOnly();
+      return;
+    }
+    if (event.target.closest('[data-stop-codex-queue]')) {
+      window.CodeSpaceDispatchQueue.stop();
+      rerenderExecutionOnly();
+      return;
+    }
+    const move = event.target.closest('[data-move-codex-queue]');
+    if (move) {
+      window.CodeSpaceDispatchQueue.move(move.dataset.queuePackage, Number(move.dataset.moveCodexQueue));
+      rerenderExecutionOnly();
+      return;
+    }
     const startButton = event.target.closest('[data-start-real-task]');
     if (startButton) {
       const item = packages().find((candidate) => candidate.packageId === startButton.dataset.startRealTask);
@@ -189,5 +298,6 @@
   const observer = new MutationObserver(queueEnhance);
   observer.observe(preview, { childList: true });
   observer.observe(list, { childList: true, subtree: true });
+  window.addEventListener('code-space:queue-changed', rerenderExecutionOnly);
   queueEnhance();
 })();

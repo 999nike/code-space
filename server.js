@@ -11,6 +11,7 @@ const { promisify } = require('node:util');
 const { listOfficeProjects } = require('./office-project-catalog.js');
 const { runReadOnlyDispatchTask } = require('./dispatch-readonly-worker.js');
 const { runWriteDispatchTask } = require('./dispatch-write-worker.js');
+const { runCodexDispatchTask } = require('./dispatch-codex-worker.js');
 
 const execFileAsync = promisify(execFile);
 const HOST = '127.0.0.1';
@@ -24,6 +25,7 @@ const MAX_BODY = 128 * 1024;
 let codeServerProcess = null;
 let codeServerStartPromise = null;
 let lastCodeServerStartError = null;
+let activeCodexRun = false;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -293,6 +295,21 @@ async function handleApi(req, res, pathname) {
     return json(res, 200, result);
   }
 
+  if (pathname === '/api/dispatch/run-codex') {
+    if (activeCodexRun) {
+      const error = new Error('A Codex task is already running. The queue permits one task at a time.');
+      error.statusCode = 409;
+      throw error;
+    }
+    activeCodexRun = true;
+    try {
+      const result = await runCodexDispatchTask(body.package, { root: ROOT });
+      return json(res, 200, result);
+    } finally {
+      activeCodexRun = false;
+    }
+  }
+
   if (pathname === '/api/code-server/start') {
     return json(res, 200, await ensureCodeServer());
   }
@@ -431,7 +448,7 @@ const server = http.createServer(async (req, res) => {
     return await serveStatic(req, res, decodeURIComponent(url.pathname));
   } catch (error) {
     console.error('[code-space]', error);
-    return json(res, 400, { error: safeError(error) });
+    return json(res, Number.isInteger(error?.statusCode) ? error.statusCode : 400, { error: safeError(error) });
   }
 });
 

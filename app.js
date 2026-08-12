@@ -109,6 +109,7 @@
 
   function renderDispatchInbox() {
     const items = dispatchPackages();
+    window.CodeSpaceDispatchQueue?.sync?.(items);
     if (!items.some((item) => item.packageId === selectedDispatchId)) selectedDispatchId = items[0]?.packageId || null;
     els.dispatchList.innerHTML = items.length ? items.map((item) => `
       <button type="button" class="dispatch-inbox-item ${item.packageId === selectedDispatchId ? 'active' : ''}" data-select-dispatch="${escapeAttr(item.packageId)}">
@@ -150,6 +151,7 @@
     try {
       const accepted = window.CodeSpaceDispatchPackage.parse(await file.text());
       window.CodeSpaceDispatchInbox.add(accepted);
+      window.CodeSpaceDispatchQueue?.enqueue?.(accepted);
       selectedDispatchId = accepted.packageId;
       setDispatchMessage(`Validated ${accepted.packageId}. Preview only — nothing executed.`, 'valid');
       renderDispatchInbox();

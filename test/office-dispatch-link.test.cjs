@@ -86,3 +86,36 @@ test('Office dispatch link notifies the current tab without reloading after a va
   assert.equal(received[0].type, 'code-space:office-dispatch-received');
   assert.equal(received[0].detail.packageId, 'package-1');
 });
+
+test('Office batch dispatch accepts only the Office origin and preserves package order', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'office-dispatch-link.js'), 'utf8');
+  const listeners = new Map();
+  const added = [];
+  const queued = [];
+  const context = {
+    window: {
+      name: '',
+      CodeSpaceDispatchPackage: { validate(value) { return value; } },
+      CodeSpaceDispatchInbox: { add(value) { added.push(value); }, remove() {} },
+      CodeSpaceDispatchQueue: { enqueue(value) { queued.push(value); } },
+      addEventListener(type, fn) { listeners.set(type, fn); },
+    },
+    document: {
+      documentElement: {}, head: { appendChild() {} }, addEventListener() {},
+      createElement() { return { id: '', textContent: '', className: '' }; },
+      getElementById() { return null; }, querySelector() { return null; }, querySelectorAll() { return []; },
+    },
+    location: { href: 'http://127.0.0.1:8090/' }, history: { replaceState() {} },
+    sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+    MutationObserver: class { observe() {} }, URL, TextDecoder, Uint8Array, atob: globalThis.atob,
+    setTimeout() {}, console, CSS: { escape(value) { return String(value); } },
+  };
+  context.window.window = context.window;
+  vm.runInNewContext(source, context, { filename: 'office-dispatch-link.js' });
+
+  listeners.get('message')({ origin: 'http://example.test', data: { type: 'office-dispatch-batch-v1', packages: [{ packageId: 'ignore' }, { packageId: 'ignore-2' }] } });
+  listeners.get('message')({ origin: 'http://127.0.0.1:4176', data: { type: 'office-dispatch-batch-v1', packages: [{ packageId: 'one' }, { packageId: 'two' }] } });
+
+  assert.deepEqual(added.map((item) => item.packageId), ['one', 'two']);
+  assert.deepEqual(queued.map((item) => item.packageId), ['one', 'two']);
+});

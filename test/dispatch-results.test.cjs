@@ -56,3 +56,19 @@ test('write completion persists created and modified file records', () => {
   assert.deepEqual(completed.filesCreated.map((file) => file.name), ['agent-write-test.txt']);
   assert.deepEqual(completed.filesModified, []);
 });
+
+test('Codex completion persists the Code Space mediated file manifest', () => {
+  const codexGrant = { allowed: ['readFiles', 'proposeResult'], capabilities: { readFiles: true, proposeResult: true } };
+  const running = Results.startCodex({ ...pkg, packageId: 'codex-package-1', worker: { id: 'builtin:codex', name: 'Codex' } }, codexGrant);
+  const completed = Results.completeCodex(running.taskId, {
+    mode: 'codex-worker',
+    exitCode: 0,
+    timedOut: false,
+    sandboxMode: 'read-only',
+    filesInspected: [{ name: 'math.js', bytes: 44 }],
+    summary: 'Codex inspected the authorized snapshot.',
+    proposedResult: 'The file exports add.'
+  });
+  assert.equal(completed.status, 'Completed');
+  assert.deepEqual(completed.filesInspected, [{ name: 'math.js', bytes: 44 }]);
+});
