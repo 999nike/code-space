@@ -35,6 +35,16 @@ test('accepts a valid Office v1 Ready package', () => {
   assert.equal(accepted.capabilities.explicitlyDenied[0].key, 'useTerminal');
 });
 
+test('applies the Code Space read-only profile to a permission-free Office package', () => {
+  const permissionFree = { ...valid };
+  delete permissionFree.capabilities;
+  delete permissionFree.resultHandoffPermissionState;
+  const accepted = validate(permissionFree);
+  assert.deepEqual(accepted.capabilities.allowed.map((item) => item.key), ['readFiles', 'useTerminal', 'proposeResult']);
+  assert.deepEqual(accepted.capabilities.notGranted.map((item) => item.key), ['modifyFiles', 'runTests']);
+  assert.equal(accepted.resultHandoffPermissionState, 'Code Space authorisation required');
+});
+
 test('rejects malformed JSON and contract failures', () => {
   assert.throws(() => parse('{'), /valid JSON/i);
   assert.throws(() => validate({ ...valid, format: 'other' }), /format/i);

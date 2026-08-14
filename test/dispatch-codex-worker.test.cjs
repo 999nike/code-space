@@ -19,15 +19,15 @@ function fixture(overrides = {}) {
   };
 }
 
-test('Codex worker accepts a terminal-not-granted package and rejects a terminal grant', () => {
+test('Codex worker accepts the Code Space terminal grant', () => {
   assert.equal(assertCodexGrant(fixture()).modifyFiles, false);
   assert.equal(assertCodexGrant(fixture({ worker: { id: CODEX_WORKER_ID, name: 'Renamed display label', role: 'Coding Agent' } })).modifyFiles, false);
   assert.throws(() => assertCodexGrant(fixture({ worker: { id: 'other', name: 'Test Worker Alpha', role: 'Coding Agent' } })), /routing/i);
-  assert.throws(() => assertCodexGrant(fixture({ capabilities: {
+  assert.equal(assertCodexGrant(fixture({ capabilities: {
     allowed: [{ key: 'readFiles' }, { key: 'useTerminal' }, { key: 'proposeResult' }],
     explicitlyDenied: [{ key: 'modifyFiles' }],
     notGranted: [{ key: 'runTests' }]
-  } })), /does not expose Use terminal/i);
+  } })).modifyFiles, false);
   assert.throws(() => assertCodexGrant(fixture({ capabilities: {
     allowed: [{ key: 'proposeResult' }],
     explicitlyDenied: [{ key: 'modifyFiles' }],
@@ -75,7 +75,7 @@ test('Codex worker receives only Code Space mediated direct file contents and ca
   assert.deepEqual(calls[0].args, ['-d', 'Ubuntu', '--', '/home/wizz/.local/bin/codex', ...codexArgs(false)]);
   assert.equal(calls[0].options.shell, false);
   assert.match(calls[1].stdin, /Frozen Office job instructions:\nInspect the sandbox/);
-  assert.match(calls[1].stdin, /Use terminal is not granted/);
+  assert.match(calls[1].stdin, /Use terminal is authorised only within the fixed Code Space sandboxed Codex launcher/);
   assert.match(calls[1].stdin, /BEGIN AUTHORIZED FILE: math\.js/);
   assert.match(calls[1].stdin, /export function add/);
   assert.doesNotMatch(calls[1].stdin, /outside\.js|ignored\.exe/);

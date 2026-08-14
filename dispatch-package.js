@@ -11,6 +11,11 @@
     proposeResult: 'Propose result / handoff'
   });
   const GROUPS = ['allowed', 'explicitlyDenied', 'notGranted'];
+  const OFFICE_FREE_DEFAULT_CAPABILITIES = Object.freeze({
+    allowed: Object.freeze(['readFiles', 'useTerminal', 'proposeResult']),
+    explicitlyDenied: Object.freeze([]),
+    notGranted: Object.freeze(['modifyFiles', 'runTests'])
+  });
 
   function reject(message) {
     throw new Error(message);
@@ -46,6 +51,10 @@
     return normalized;
   }
 
+  function codeSpaceDefaultCapabilities() {
+    return Object.fromEntries(GROUPS.map((group) => [group, OFFICE_FREE_DEFAULT_CAPABILITIES[group].map((key) => ({ key, label: CAPABILITIES[key] }))]));
+  }
+
   function validate(value) {
     const source = object(value, 'package');
     if (source.format !== FORMAT) reject(`Unsupported package format: ${String(source.format)}.`);
@@ -70,8 +79,12 @@
         name: text(worker.name, 'worker.name'),
         role: text(worker.role, 'worker.role')
       }),
-      capabilities: Object.freeze(validateCapabilities(source.capabilities)),
-      resultHandoffPermissionState: text(source.resultHandoffPermissionState, 'resultHandoffPermissionState'),
+      capabilities: Object.freeze(source.capabilities === undefined
+        ? codeSpaceDefaultCapabilities()
+        : validateCapabilities(source.capabilities)),
+      resultHandoffPermissionState: source.capabilities === undefined
+        ? 'Code Space authorisation required'
+        : text(source.resultHandoffPermissionState, 'resultHandoffPermissionState'),
       packageStatus: 'Ready'
     });
   }

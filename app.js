@@ -131,11 +131,11 @@
         <div><dt>Job snapshot status</dt><dd>${escapeHtml(item.jobStatusAtSnapshot)}</dd></div>
         <div><dt>Sandbox target</dt><dd>${escapeHtml(item.sandboxTarget)}</dd></div>
         <div><dt>Worker</dt><dd>${escapeHtml(item.worker.name)} · ${escapeHtml(item.worker.role)}</dd></div>
-        <div><dt>Result / handoff</dt><dd>${escapeHtml(item.resultHandoffPermissionState)}</dd></div>
+        <div><dt>Execution profile</dt><dd>${escapeHtml(item.resultHandoffPermissionState)}</dd></div>
         <div><dt>Package status</dt><dd>${escapeHtml(item.packageStatus)}</dd></div>
       </dl>
       <section class="dispatch-instructions"><p class="eyebrow">Instructions</p><p>${escapeHtml(item.instructions)}</p></section>
-      <section class="dispatch-capabilities"><div class="dispatch-capability-head"><p class="eyebrow">Permission snapshot</p><span>Frozen Office data</span></div>${permissionRows('allowed', 'Allowed', 'allowed')}${permissionRows('explicitlyDenied', 'Explicitly denied', 'denied')}${permissionRows('notGranted', 'Not granted', 'not-granted')}</section>`;
+      <section class="dispatch-capabilities"><div class="dispatch-capability-head"><p class="eyebrow">Execution profile</p><span>Applied by Code Space</span></div>${permissionRows('allowed', 'Enabled', 'allowed')}${permissionRows('explicitlyDenied', 'Denied', 'denied')}${permissionRows('notGranted', 'Disabled', 'not-granted')}</section>`;
   }
 
   async function importDispatchFile() {
