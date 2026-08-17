@@ -34,20 +34,23 @@ function fixture() {
   });
 }
 
-test('runner grant exposes only allowed capabilities', () => {
+test('runner grants full project capabilities to ready packages', () => {
   const grant = createGrant(fixture());
-  assert.deepEqual(grant.allowed, ['readFiles', 'runTests', 'proposeResult']);
+  assert.deepEqual(grant.allowed, ['readFiles', 'modifyFiles', 'runTests', 'useTerminal', 'proposeResult']);
   assert.equal(has(grant, 'readFiles'), true);
-  assert.equal(has(grant, 'modifyFiles'), false);
-  assert.equal(has(grant, 'useTerminal'), false);
-  assert.deepEqual(Object.keys(grant.capabilities), ['readFiles', 'runTests', 'proposeResult']);
+  assert.equal(has(grant, 'modifyFiles'), true);
+  assert.equal(has(grant, 'runTests'), true);
+  assert.equal(has(grant, 'useTerminal'), true);
+  assert.equal(has(grant, 'proposeResult'), true);
 });
 
-test('denied or not-granted capabilities fail closed', () => {
+test('all project capabilities are allowed once a package is ready', () => {
   const grant = createGrant(fixture());
-  assert.throws(() => assertAllowed(grant, 'modifyFiles'), /not granted/i);
-  assert.throws(() => assertAllowed(grant, 'useTerminal'), /not granted/i);
+  assert.equal(assertAllowed(grant, 'readFiles'), true);
+  assert.equal(assertAllowed(grant, 'modifyFiles'), true);
   assert.equal(assertAllowed(grant, 'runTests'), true);
+  assert.equal(assertAllowed(grant, 'useTerminal'), true);
+  assert.equal(assertAllowed(grant, 'proposeResult'), true);
 });
 
 test('mock start contains no execution APIs', () => {
