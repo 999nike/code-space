@@ -10,7 +10,6 @@ const SANDBOX_TARGET = 'agent-sandbox-test';
 const WSL_SANDBOX_PATH = '/mnt/e/WIZZ-Server/workspaces/agent-sandbox-test';
 const CODEX_COMMAND = '/home/wizz/.local/bin/codex';
 const KNOWN_CAPABILITIES = ['readFiles', 'modifyFiles', 'runTests', 'useTerminal', 'proposeResult'];
-const MAX_OUTPUT = 128 * 1024;
 const TIMEOUT_MS = 10 * 60 * 1000;
 
 function text(value, label) {
@@ -54,11 +53,6 @@ function commandFor(platform) {
     : { command: CODEX_COMMAND, args: [] };
 }
 
-function boundedAppend(current, chunk) {
-  if (current.length >= MAX_OUTPUT) return current;
-  return `${current}${String(chunk)}`.slice(0, MAX_OUTPUT);
-}
-
 function runProcess(command, args, input, options = {}) {
   const start = options.spawn || spawn;
   const timeoutMs = options.timeoutMs || TIMEOUT_MS;
@@ -69,8 +63,8 @@ function runProcess(command, args, input, options = {}) {
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
     child.once('error', (error) => { clearTimeout(timer); reject(error); });
-    child.stdout.on('data', (chunk) => { stdout = boundedAppend(stdout, chunk); });
-    child.stderr.on('data', (chunk) => { stderr = boundedAppend(stderr, chunk); });
+    child.stdout.on('data', (chunk) => { stdout += String(chunk); });
+    child.stderr.on('data', (chunk) => { stderr += String(chunk); });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
       resolve({ exitCode: Number.isInteger(code) ? code : null, signal: signal || null, timedOut, stdout, stderr });

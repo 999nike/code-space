@@ -361,9 +361,9 @@ If PowerShell blocks `npm.ps1`, use `npm.cmd test`; do not change execution poli
 # CURRENT IMPLEMENTED STATE
 
 - The deterministic read/test worker and fixed write test worker remain available for their original test purposes.
-- An explicit Codex route exists: a frozen package with `worker.id = builtin:codex` (or the legacy `worker.name = Codex` fallback) can call it. It is restricted to `agent-sandbox-test`, passes the frozen instructions through stdin to ephemeral non-interactive `codex exec`, ignores user config, disables plugins, skips only the sandbox Git-repository check, selects `read-only` or `workspace-write` from `modifyFiles`, and persists stdout/stderr/exit status. A server-side lock rejects concurrent Codex execution.
+- An explicit Codex route exists: a frozen package with `worker.id = builtin:codex` (or the legacy `worker.name = Codex` fallback) can call it. It is restricted to `agent-sandbox-test`, passes the frozen instructions through stdin to ephemeral non-interactive `codex exec` with `--sandbox workspace-write` and `--ask-for-approval never`, and persists stdout/stderr/exit status. Codex has direct full project access inside that sandbox: it can read, create, modify, and delete files; use the terminal; and run tests.
 - Code Space now has a persistent browser-local ordered Codex queue. Imported Codex packages enter it without executing; one batch `Authorise & Start queue` runs one package at a time. Results persist, read-only ordinary failures may continue, and write-capable or safety/permission failures pause as `Failed`/`Blocked`. Queue ordering, pause, and stop are available; no Git automation exists.
-- Focused and batched local tests pass. The first live invocation revealed that terminal-denied Codex had no mediated file input; that input is now implemented and the single repeat proof is ready when explicitly authorised.
+- Focused and batched local tests pass. Codex reads the project directly from its workspace-write sandbox; Code Space does not preload project files or impose a Codex file-input size limit.
 
 ## Office built-in Codex identity — 12 Aug 2026 — IMPLEMENTED, LIVE PROOF PENDING
 
@@ -377,11 +377,9 @@ worker.role: Built-in coding model
 
 Code Space routing now prefers `worker.id = builtin:codex` and preserves the previous `worker.name = Codex` comparison as a compatibility fallback for older packages. No package format changed, and queue/authorisation behavior remains unchanged.
 
-Phase A does not expose a general terminal capability. The fixed server-side `codex exec` launcher is itself sandbox-mediated; it accepts a frozen Codex package with `Read files` and `Propose result / handoff` allowed while `Use terminal` remains not granted, and rejects an explicit terminal grant. `Run tests` remains a separate optional frozen capability. Office does not auto-grant any capability.
+The fixed server-side `codex exec` launcher is sandbox-mediated and gives a Ready Codex package full access inside the exact `agent-sandbox-test` workspace: read files, create/modify/delete files, terminal use, and relevant tests. It always launches with `--sandbox workspace-write` and `--ask-for-approval never`; Office capability selections do not reduce this fixed Codex-worker grant.
 
-The initial live read-only proof was run on 12 Aug 2026. Code Space accepted a frozen `builtin:codex` package and Codex executed in `read-only` mode with exit status 0; no files were changed and no tests were run. It correctly reported that no files could be inspected because the terminal-denied route then had no separate file input.
-
-That blocker is now fixed. Only inside `runCodexDispatchTask`, after `readFiles` and the exact `agent-sandbox-test` root have been validated, Code Space reuses its bounded direct-file reader. It accepts supported direct regular files only, rejects separators/dot names and resolved paths outside the sandbox, applies existing per-file bounds plus a 128 KiB total Codex prompt cap, and presents the selected contents as explicitly delimited untrusted project data. No file-read HTTP endpoint, shell endpoint, recursive path access, `modifyFiles`, `runTests`, or `useTerminal` grant is added. The structured Codex result persists the supplied file manifest.
+The earlier read-only proof and bounded project-file snapshot are retired. Codex now inspects the sandbox directly, with no preloaded file manifest or Codex 128 KiB input cap.
 
 ## Phase A real Codex read-only proof — VERIFIED 12 Aug 2026
 
