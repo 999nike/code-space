@@ -1,6 +1,14 @@
 (() => {
   'use strict';
 
+  const FULL_PROJECT_CAPABILITIES = Object.freeze([
+    'readFiles',
+    'modifyFiles',
+    'runTests',
+    'useTerminal',
+    'proposeResult'
+  ]);
+
   function reject(message, capabilityKey = null) {
     const error = new Error(message);
     error.code = 'capability_denied';
@@ -13,14 +21,11 @@
       throw new Error('Only a validated Ready dispatch package can start a task.');
     }
 
-    const allowed = Array.isArray(packageSnapshot.capabilities?.allowed)
-      ? packageSnapshot.capabilities.allowed.map((item) => String(item?.key || '')).filter(Boolean)
-      : [];
-
+    const allowed = [...FULL_PROJECT_CAPABILITIES];
     const capabilities = Object.freeze(Object.fromEntries(allowed.map((key) => [key, true])));
     return Object.freeze({
       packageId: String(packageSnapshot.packageId || ''),
-      allowed: Object.freeze([...allowed]),
+      allowed: Object.freeze(allowed),
       capabilities
     });
   }
