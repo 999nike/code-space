@@ -10,10 +10,13 @@ const HOST = '127.0.0.1';
 const ROOT = path.resolve(process.env.WORKER_APP_ROOT || 'E:\\WIZZ-Server\\workspaces');
 const CODE_SPACE_DIR = path.join(ROOT, 'code-space');
 const OFFICE_DIR = path.join(ROOT, 'office-app');
+const MEMORY_APP_DIR = path.join(ROOT, 'memory-app');
 const LOG_FILE = path.join(CODE_SPACE_DIR, 'worker-app-supervisor.log');
 const CODE_SERVER_LOG = path.join(CODE_SPACE_DIR, 'worker-app-code-server.log');
 
 const SERVICES = {
+  memorySpace: { name: 'Memory Space', port: 8001, url: 'http://127.0.0.1:8001' },
+  memoryBridge: { name: 'Memory Bridge', port: 8787, url: 'http://127.0.0.1:8787' },
   office: { name: 'Office', port: 4176, url: 'http://127.0.0.1:4176' },
   codeSpace: { name: 'Code Space', port: 8090, url: 'http://127.0.0.1:8090' },
   codeServer: { name: 'code-server', port: 8080, url: 'http://127.0.0.1:8080' }
@@ -123,6 +126,41 @@ async function ensureOffice() {
   return { running: await waitFor(SERVICES.office.port), started: true, pid };
 }
 
+async function startMemoryBridgeScheduledTask() {
+  if (process.platform !== 'win32') {
+    throw new Error('Memory Bridge is managed by a Windows Scheduled Task');
+  }
+
+  await new Promise((resolve, reject) => {
+    execFile('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      "Start-ScheduledTask -TaskName 'Memory Space Bridge' -ErrorAction Stop"
+    ], { windowsHide: true, timeout: 10000 }, (error, stdout, stderr) => {
+      if (error) return reject(new Error(String(stderr || error.message).trim()));
+      resolve(String(stdout || '').trim());
+    });
+  });
+}
+
+async function ensureMemoryBridge() {
+  if (await reachable(SERVICES.memoryBridge.port)) return { running: true, started: false };
+  log('Starting Memory Bridge using the Memory Space Bridge scheduled task...');
+  await startMemoryBridgeScheduledTask();
+  return {
+    running: await waitFor(SERVICES.memoryBridge.port, 30000),
+    started: true
+  };
+}
+
+async function ensureMemorySpace() {
+  if (await reachable(SERVICES.memorySpace.port)) return { running: true, started: false };
+  log('Starting Memory Space...');
+  const pid = detached('python', [
+    '-m', 'http.server', String(SERVICES.memorySpace.port), '--bind', HOST
+  ], { cwd: MEMORY_APP_DIR });
+  return { running: await waitFor(SERVICES.memorySpace.port), started: true, pid };
+}
+
 async function ensureCodeServer() {
   if (await reachable(SERVICES.codeServer.port)) return { running: true, started: false };
   log('Starting code-server in Ubuntu WSL...');
@@ -168,6 +206,14 @@ async function main() {
     return;
   }
 
+  const [memoryBridge, memorySpace] = await Promise.all([
+    ensureMemoryBridge(),
+    ensureMemorySpace()
+  ]);
+
+  log(`Memory Bridge ${memoryBridge.running ? 'ready' : 'FAILED'} at ${SERVICES.memoryBridge.url}`);
+  log(`Memory Space ${memorySpace.running ? 'ready' : 'FAILED'} at ${SERVICES.memorySpace.url}`);
+
   const [codeSpace, office] = await Promise.all([
     ensureCodeSpace(),
     ensureOffice()
@@ -176,16 +222,18 @@ async function main() {
   log(`Code Space ${codeSpace.running ? 'ready' : 'FAILED'} at ${SERVICES.codeSpace.url}`);
   log(`Office ${office.running ? 'ready' : 'FAILED'} at ${SERVICES.office.url}`);
 
-  // Open Code Space first. Its initial document claims the `code-space`
+  // Open Memory Space as its own tab. Code Space must still open before Office:
+  // its initial document claims the `code-space`
   // browsing-context name, which Office dispatches reuse instead of creating
   // another tab. The launcher never starts services during dispatch.
+  if (memorySpace.running) openBrowserTab(SERVICES.memorySpace.url);
   if (codeSpace.running) openBrowserTab(SERVICES.codeSpace.url);
   if (office.running) openBrowserTab(SERVICES.office.url);
 
   const codeServer = await ensureCodeServer();
   log(`code-server ${codeServer.running ? 'ready' : 'FAILED'} at ${SERVICES.codeServer.url}`);
 
-  if (!codeSpace.running || !office.running || !codeServer.running) {
+  if (!memoryBridge.running || !memorySpace.running || !codeSpace.running || !office.running || !codeServer.running) {
     log(`Startup incomplete. See ${LOG_FILE}`);
     if (!codeServer.running) log(`code-server details: ${CODE_SERVER_LOG}`);
     process.exitCode = 1;

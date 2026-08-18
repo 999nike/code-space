@@ -17,6 +17,7 @@ test('startup opens Code Space before Office and Office dispatches through the h
   assert.match(supervisor, /spawn\('cmd\.exe', \['\/c', 'start', '', url\]/);
   assert.match(supervisor, /if \(codeSpace\.running\) openBrowserTab\(SERVICES\.codeSpace\.url\);/);
   assert.match(supervisor, /if \(office\.running\) openBrowserTab\(SERVICES\.office\.url\);/);
+  assert.match(supervisor, /if \(memorySpace\.running\) openBrowserTab\(SERVICES\.memorySpace\.url\);/);
   assert.ok(
     supervisor.indexOf('openBrowserTab(SERVICES.codeSpace.url)')
       < supervisor.indexOf('openBrowserTab(SERVICES.office.url)'),
