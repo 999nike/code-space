@@ -16,6 +16,15 @@ test('Memory Bridge is health-checked, then started only through its scheduled t
   assert.doesNotMatch(supervisor, /server-v2\.mjs/);
 });
 
+test('Office receives a derived local Memory job-feed credential from the protected Bridge helper', () => {
+  assert.match(supervisor, /get-office-job-feed\.ps1/);
+  assert.match(supervisor, /async function getOfficeMemoryFeed\(\)/);
+  assert.match(supervisor, /MEMORY_SPACE_JOB_FEED_URL: feed\.url/);
+  assert.match(supervisor, /MEMORY_SPACE_JOB_FEED_TOKEN: feed\.token/);
+  assert.match(supervisor, /async function officeHasMemoryFeed\(\)/);
+  assert.match(supervisor, /async function stopOfficeListener\(\)/);
+});
+
 test('Memory Space is health-checked and served with the installed Python static server', () => {
   assert.match(supervisor, /memorySpace: \{ name: 'Memory Space', port: 8001, url: 'http:\/\/127\.0\.0\.1:8001' \}/);
   assert.match(supervisor, /async function ensureMemorySpace\(\)/);

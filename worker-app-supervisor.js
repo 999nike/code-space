@@ -11,6 +11,7 @@ const ROOT = path.resolve(process.env.WORKER_APP_ROOT || 'E:\\WIZZ-Server\\works
 const CODE_SPACE_DIR = path.join(ROOT, 'code-space');
 const OFFICE_DIR = path.join(ROOT, 'office-app');
 const MEMORY_APP_DIR = path.join(ROOT, 'memory-app');
+const OFFICE_MEMORY_FEED_SCRIPT = path.join(MEMORY_APP_DIR, 'bridge', 'windows', 'get-office-job-feed.ps1');
 const LOG_FILE = path.join(CODE_SPACE_DIR, 'worker-app-supervisor.log');
 const CODE_SERVER_LOG = path.join(CODE_SPACE_DIR, 'worker-app-code-server.log');
 
@@ -117,13 +118,78 @@ async function ensureCodeSpace() {
 }
 
 async function ensureOffice() {
-  if (await reachable(SERVICES.office.port)) return { running: true, started: false };
+  const feed = await getOfficeMemoryFeed();
+  if (await reachable(SERVICES.office.port)) {
+    if (await officeHasMemoryFeed()) return { running: true, started: false };
+    await stopOfficeListener();
+  }
   log('Starting Office...');
   const pid = detached(process.execPath, ['server.mjs'], {
     cwd: OFFICE_DIR,
-    env: { PORT: String(SERVICES.office.port) }
+    // Keep this derived, job-only credential in the Office child process. It
+    // is deliberately neither persisted nor written to the supervisor log.
+    env: {
+      PORT: String(SERVICES.office.port),
+      MEMORY_SPACE_JOB_FEED_URL: feed.url,
+      MEMORY_SPACE_JOB_FEED_TOKEN: feed.token
+    }
   });
   return { running: await waitFor(SERVICES.office.port), started: true, pid };
+}
+
+async function getOfficeMemoryFeed() {
+  const stdout = await new Promise((resolve, reject) => {
+    execFile('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', OFFICE_MEMORY_FEED_SCRIPT
+    ], { windowsHide: true, timeout: 10000 }, (error, output, stderr) => {
+      if (error) return reject(new Error(String(stderr || error.message).trim()));
+      resolve(String(output || '').trim());
+    });
+  });
+  let feed;
+  try { feed = JSON.parse(stdout); } catch { throw new Error('Memory Bridge returned invalid Office job-feed configuration'); }
+  const url = String(feed?.url || '').trim();
+  const token = String(feed?.token || '').trim();
+  if (!url || !token) throw new Error('Memory Bridge returned incomplete Office job-feed configuration');
+  return { url, token };
+}
+
+async function officeHasMemoryFeed() {
+  return new Promise((resolve) => {
+    const req = http.request({ host: HOST, port: SERVICES.office.port, path: '/api/memory-jobs', method: 'GET', timeout: 2000 }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')).configured === true); }
+        catch { resolve(false); }
+      });
+    });
+    req.once('timeout', () => { req.destroy(); resolve(false); });
+    req.once('error', () => resolve(false));
+    req.end();
+  });
+}
+
+async function stopOfficeListener() {
+  if (process.platform !== 'win32') throw new Error('Managed Office restart is only available from the Windows Worker App supervisor');
+  const script = [
+    `$connection = Get-NetTCPConnection -LocalAddress '${HOST}' -LocalPort ${SERVICES.office.port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    'if (-not $connection) { exit 0 }',
+    '$process = Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)"',
+    "if (-not $process -or $process.Name -notmatch '^node(\\.exe)?$' -or $process.CommandLine -notmatch '(?i)office-app.*server\\.mjs') {",
+    "  throw 'Refusing to stop port 4176: its listener is not the Office node server.'",
+    '}',
+    'Stop-Process -Id $connection.OwningProcess -Force'
+  ].join('; ');
+  await new Promise((resolve, reject) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 10000 }, (error, stdout, stderr) => {
+      if (error) return reject(new Error(String(stderr || error.message).trim()));
+      resolve(String(stdout || '').trim());
+    });
+  });
+  if (await waitFor(SERVICES.office.port, 2000)) throw new Error('Office did not stop cleanly for its Memory feed refresh');
+  log('Restarting Office to refresh its Memory job-feed credential');
 }
 
 async function startMemoryBridgeScheduledTask() {
