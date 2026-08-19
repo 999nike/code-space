@@ -120,7 +120,11 @@ async function ensureCodeSpace() {
 async function ensureOffice() {
   const feed = await getOfficeMemoryFeed();
   if (await reachable(SERVICES.office.port)) {
-    if (await officeHasMemoryFeed()) return { running: true, started: false };
+    const status = await officeMemoryFeedStatus();
+    if (!status.managed) {
+      throw new Error('Refusing to stop port 4176: its listener is not the managed Office server.');
+    }
+    if (status.configured) return { running: true, started: false };
     await stopOfficeListener();
   }
   log('Starting Office...');
@@ -155,18 +159,20 @@ async function getOfficeMemoryFeed() {
   return { url, token };
 }
 
-async function officeHasMemoryFeed() {
+async function officeMemoryFeedStatus() {
   return new Promise((resolve) => {
     const req = http.request({ host: HOST, port: SERVICES.office.port, path: '/api/memory-jobs', method: 'GET', timeout: 2000 }, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')).configured === true); }
-        catch { resolve(false); }
+        try {
+          const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          resolve({ managed: res.statusCode === 200 && typeof data?.configured === 'boolean', configured: data?.configured === true });
+        } catch { resolve({ managed: false, configured: false }); }
       });
     });
-    req.once('timeout', () => { req.destroy(); resolve(false); });
-    req.once('error', () => resolve(false));
+    req.once('timeout', () => { req.destroy(); resolve({ managed: false, configured: false }); });
+    req.once('error', () => resolve({ managed: false, configured: false }));
     req.end();
   });
 }
@@ -177,7 +183,7 @@ async function stopOfficeListener() {
     `$connection = Get-NetTCPConnection -LocalAddress '${HOST}' -LocalPort ${SERVICES.office.port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
     'if (-not $connection) { exit 0 }',
     '$process = Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)"',
-    "if (-not $process -or $process.Name -notmatch '^node(\\.exe)?$' -or $process.CommandLine -notmatch '(?i)office-app.*server\\.mjs') {",
+    "if (-not $process -or $process.Name -notmatch '^node(\\.exe)?$' -or $process.CommandLine -notmatch '(?i)(^|[\\\\/\\s])server\\.mjs(?:\\s|$)') {",
     "  throw 'Refusing to stop port 4176: its listener is not the Office node server.'",
     '}',
     'Stop-Process -Id $connection.OwningProcess -Force'

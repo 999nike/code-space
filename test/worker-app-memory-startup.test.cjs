@@ -21,8 +21,10 @@ test('Office receives a derived local Memory job-feed credential from the protec
   assert.match(supervisor, /async function getOfficeMemoryFeed\(\)/);
   assert.match(supervisor, /MEMORY_SPACE_JOB_FEED_URL: feed\.url/);
   assert.match(supervisor, /MEMORY_SPACE_JOB_FEED_TOKEN: feed\.token/);
-  assert.match(supervisor, /async function officeHasMemoryFeed\(\)/);
+  assert.match(supervisor, /async function officeMemoryFeedStatus\(\)/);
+  assert.match(supervisor, /typeof data\?\.configured === 'boolean'/);
   assert.match(supervisor, /async function stopOfficeListener\(\)/);
+  assert.match(supervisor, /Refusing to stop port 4176: its listener is not the managed Office server/);
 });
 
 test('Memory Space is health-checked and served with the installed Python static server', () => {
