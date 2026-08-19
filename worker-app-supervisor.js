@@ -295,12 +295,22 @@ async function stopWorkerApp() {
 
 function openBrowserTab(url) {
   if (process.env.WORKER_APP_NO_BROWSER === '1' || process.platform !== 'win32') return;
-  const child = spawn('cmd.exe', ['/c', 'start', '', url], {
+  const child = spawn('explorer.exe', [url], {
     detached: true,
     windowsHide: true,
     stdio: 'ignore'
   });
   child.unref();
+}
+
+async function ensureService(key, ensure) {
+  try {
+    const result = await ensure();
+    return result?.running ? result : { ...result, running: false, error: 'Service did not become ready' };
+  } catch (error) {
+    log(`${SERVICES[key].name} startup failed: ${error?.message || error}`);
+    return { running: await reachable(SERVICES[key].port), started: false, error: error?.message || String(error) };
+  }
 }
 
 async function main() {
@@ -316,31 +326,26 @@ async function main() {
     return;
   }
 
-  const [memoryBridge, memorySpace] = await Promise.all([
-    ensureMemoryBridge(),
-    ensureMemorySpace()
-  ]);
+  const memoryBridge = await ensureService('memoryBridge', ensureMemoryBridge);
+  const memorySpace = await ensureService('memorySpace', ensureMemorySpace);
 
   log(`Memory Bridge ${memoryBridge.running ? 'ready' : 'FAILED'} at ${SERVICES.memoryBridge.url}`);
   log(`Memory Space ${memorySpace.running ? 'ready' : 'FAILED'} at ${SERVICES.memorySpace.url}`);
 
-  const [codeSpace, office] = await Promise.all([
-    ensureCodeSpace(),
-    ensureOffice()
-  ]);
+  const codeSpace = await ensureService('codeSpace', ensureCodeSpace);
+  const office = await ensureService('office', ensureOffice);
+  const codeServer = await ensureService('codeServer', ensureCodeServer);
 
   log(`Code Space ${codeSpace.running ? 'ready' : 'FAILED'} at ${SERVICES.codeSpace.url}`);
   log(`Office ${office.running ? 'ready' : 'FAILED'} at ${SERVICES.office.url}`);
 
-  // Open Memory Space as its own tab. Code Space must still open before Office:
+  // Open tabs only after every startup attempt. Code Space must still open before Office:
   // its initial document claims the `code-space`
   // browsing-context name, which Office dispatches reuse instead of creating
   // another tab. The launcher never starts services during dispatch.
   if (memorySpace.running) openBrowserTab(SERVICES.memorySpace.url);
   if (codeSpace.running) openBrowserTab(SERVICES.codeSpace.url);
   if (office.running) openBrowserTab(SERVICES.office.url);
-
-  const codeServer = await ensureCodeServer();
   log(`code-server ${codeServer.running ? 'ready' : 'FAILED'} at ${SERVICES.codeServer.url}`);
 
   if (!memoryBridge.running || !memorySpace.running || !codeSpace.running || !office.running || !codeServer.running) {

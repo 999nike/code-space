@@ -14,7 +14,12 @@ test('startup opens Code Space before Office and Office dispatches through the h
   const page = fs.readFileSync(path.join(appRoot, 'index.html'), 'utf8');
 
   assert.match(supervisor, /function openBrowserTab\(url\)/);
-  assert.match(supervisor, /spawn\('cmd\.exe', \['\/c', 'start', '', url\]/);
+  assert.match(supervisor, /spawn\('explorer\.exe', \[url\]/);
+  assert.doesNotMatch(supervisor, /spawn\('cmd\.exe', \['\/c', 'start'/);
+  assert.match(supervisor, /async function ensureService\(key, ensure\)/);
+  assert.match(supervisor, /running: await reachable\(SERVICES\[key\]\.port\)/);
+  assert.match(supervisor, /const office = await ensureService\('office', ensureOffice\)/);
+  assert.match(supervisor, /const codeServer = await ensureService\('codeServer', ensureCodeServer\)/);
   assert.match(supervisor, /if \(codeSpace\.running\) openBrowserTab\(SERVICES\.codeSpace\.url\);/);
   assert.match(supervisor, /if \(office\.running\) openBrowserTab\(SERVICES\.office\.url\);/);
   assert.match(supervisor, /if \(memorySpace\.running\) openBrowserTab\(SERVICES\.memorySpace\.url\);/);
@@ -22,6 +27,11 @@ test('startup opens Code Space before Office and Office dispatches through the h
     supervisor.indexOf('openBrowserTab(SERVICES.codeSpace.url)')
       < supervisor.indexOf('openBrowserTab(SERVICES.office.url)'),
     'Code Space must open before Office so the dispatch bridge is available first'
+  );
+  assert.ok(
+    supervisor.indexOf("ensureService('codeServer', ensureCodeServer)")
+      < supervisor.indexOf('openBrowserTab(SERVICES.memorySpace.url)'),
+    'code-server startup must be attempted before browser tabs are opened'
   );
   assert.doesNotMatch(launcher, /127\.0\.0\.1:8090|https?:\/\//i);
 
