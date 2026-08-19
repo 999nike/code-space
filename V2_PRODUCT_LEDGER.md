@@ -439,6 +439,16 @@ Do not:
 
 # MILESTONE
 
+## Worker App lifecycle checkpoint — 19 Aug 2026
+
+Banked and pushed commits: `fd7d30f` (managed Office startup detection), `b99cdd5b45214749b8d410ab2cd91157075d5778` (explicit shutdown and silent launcher), `69c27fca3707da06700ef3507a8cd30f1df80ee3` (hidden code-server WSL bootstrap), and `91f2ed7b7c02277a487b874fed5f0b6afa39a3f7` (fuser-based managed code-server shutdown detection). The Code Space suite passed 35/35 at this banked state.
+
+Working/proven: the Desktop Code Space shortcut launches Worker App; Memory Space, Memory Bridge, Office, and Code Space startup work; user-facing Memory Space, Code Space, and Office tabs can be opened; browser login through `/editor/` works; runtime logs are ignored; shutdown is explicit and confirmation-guarded; refresh/close do not control lifecycle; Memory/Office safety checks remain; code-server shutdown uses `fuser` plus command verification.
+
+Unresolved: **code-server 8080 silent WSL startup remains unresolved.** The complete five-service silent start → stop → start lifecycle has not been proven end to end. Failed approaches: (1) persistent visible `exec code-server`; (2) `nohup` + `setsid` + background; (3) the same bootstrap with a `detached:false` Windows spawn. The failed detached:false experiment was discarded and is not committed.
+
+Next session: investigate code-server as a proper WSL-managed service/systemd user service or another durable process manager instead of further Node spawn-flag changes. Do not implement that recommendation in this checkpoint.
+
 **11 Aug 2026: first real Office -> Code Space bounded worker execution proven end to end on the HP.**
 
 A Ready Office job successfully became a validated Code Space task that read two disposable sandbox files, ran one approved Node test, produced a persisted structured handoff, and completed without file-modification or terminal authority.
