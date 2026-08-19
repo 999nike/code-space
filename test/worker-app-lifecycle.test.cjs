@@ -17,7 +17,8 @@ test('explicit lifecycle shutdown is ordered and narrowly managed', () => {
   assert.ok(shutdown.indexOf('await stopMemoryBridge()') < shutdown.indexOf('await stopCodeSpaceListener()'));
   assert.match(supervisor, /Stop-ScheduledTask -TaskName 'Memory Space Bridge'/);
   assert.match(supervisor, /listener is not managed Memory Space/);
-  assert.match(supervisor, /ss -ltnp 'sport = :8080'/);
+  assert.match(supervisor, /fuser -n tcp 8080/);
+  assert.match(supervisor, /code-server\*\) kill -TERM/);
   assert.doesNotMatch(supervisor, /wsl\.exe.*--shutdown/);
 });
 

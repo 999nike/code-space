@@ -257,7 +257,7 @@ async function runPowerShell(script) {
 async function stopCodeServer() {
   if (!(await reachable(SERVICES.codeServer.port))) return;
   log('Stopping code-server...');
-  await new Promise((resolve, reject) => execFile('wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-lc', "pid=$(ss -ltnp 'sport = :8080' 2>/dev/null | grep -o 'pid=[0-9]*' | head -n1 | cut -d= -f2); test -n \"$pid\" || exit 3; cmd=$(ps -p \"$pid\" -o args=); case \"$cmd\" in *code-server*) kill \"$pid\";; *) exit 4;; esac"], { windowsHide: true, timeout: 10000 }, (error, stdout, stderr) => error ? reject(new Error(`Refusing to stop code-server: ${String(stderr || error.message).trim()}`)) : resolve(String(stdout || '').trim())));
+  await new Promise((resolve, reject) => execFile('wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-lc', "pids=$(fuser -n tcp 8080 2>/dev/null); test -n \"$pids\" || exit 3; for pid in $pids; do cmd=$(ps -p \"$pid\" -o args=); case \"$cmd\" in *code-server*) kill -TERM \"$pid\";; *) exit 4;; esac; done"], { windowsHide: true, timeout: 10000 }, (error, stdout, stderr) => error ? reject(new Error(`Refusing to stop code-server: ${String(stderr || error.message).trim()}`)) : resolve(String(stdout || '').trim())));
   if (await waitFor(SERVICES.codeServer.port, 3000)) throw new Error('code-server did not stop cleanly');
 }
 
