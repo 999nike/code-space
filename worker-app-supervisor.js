@@ -239,18 +239,10 @@ async function ensureCodeServer() {
 
   let pid;
   if (process.platform === 'win32') {
-    let out;
-    try {
-      out = fs.openSync(CODE_SERVER_LOG, 'a');
-      fs.appendFileSync(CODE_SERVER_LOG, `\n[${new Date().toISOString()}] starting code-server\n`);
-    } catch {}
-
     pid = detached('wsl.exe', [
       '-d', 'Ubuntu', '--', 'bash', '-lc',
-      'exec code-server --bind-addr 0.0.0.0:8080'
-    ], {
-      stdio: out ? ['ignore', out, out] : 'ignore'
-    });
+      'nohup setsid code-server --bind-addr 0.0.0.0:8080 >/tmp/code-space-code-server.log 2>&1 < /dev/null &'
+    ]);
   } else {
     pid = detached('code-server', ['--bind-addr', '127.0.0.1:8080'], { cwd: ROOT });
   }

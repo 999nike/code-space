@@ -28,6 +28,8 @@ test('startup opens Code Space before Office and Office dispatches through the h
       < supervisor.indexOf('openBrowserTab(SERVICES.office.url)'),
     'Code Space must open before Office so the dispatch bridge is available first'
   );
+  assert.match(supervisor, /nohup setsid code-server --bind-addr 0\.0\.0\.0:8080/);
+  assert.doesNotMatch(supervisor, /exec code-server --bind-addr 0\.0\.0\.0:8080/);
   assert.ok(
     supervisor.indexOf("ensureService('codeServer', ensureCodeServer)")
       < supervisor.indexOf('openBrowserTab(SERVICES.memorySpace.url)'),
