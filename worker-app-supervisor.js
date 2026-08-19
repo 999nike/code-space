@@ -239,10 +239,17 @@ async function ensureCodeServer() {
 
   let pid;
   if (process.platform === 'win32') {
-    pid = detached('wsl.exe', [
+    const child = spawn('wsl.exe', [
       '-d', 'Ubuntu', '--', 'bash', '-lc',
-      'nohup setsid code-server --bind-addr 0.0.0.0:8080 >/tmp/code-space-code-server.log 2>&1 < /dev/null &'
-    ]);
+      'exec code-server --bind-addr 0.0.0.0:8080'
+    ], {
+      windowsHide: true,
+      detached: false,
+      stdio: 'ignore'
+    });
+    child.once('error', (error) => log(`wsl.exe failed to launch code-server: ${error.message}`));
+    child.unref();
+    pid = child.pid;
   } else {
     pid = detached('code-server', ['--bind-addr', '127.0.0.1:8080'], { cwd: ROOT });
   }
