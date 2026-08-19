@@ -21,6 +21,7 @@ const CODE_SERVER_URL = String(process.env.CODE_SERVER_URL || 'http://127.0.0.1:
 const CODE_SERVER_COMMAND = String(process.env.CODE_SERVER_COMMAND || 'code-server').trim();
 const APP_ROOT = __dirname;
 const OFFICE_ORIGIN = 'http://127.0.0.1:4176';
+const CODE_SPACE_ORIGIN = `http://${HOST}:${PORT}`;
 const MAX_BODY = 128 * 1024;
 let codeServerProcess = null;
 let codeServerStartPromise = null;
@@ -284,6 +285,14 @@ async function handleApi(req, res, pathname) {
 
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const body = await readBody(req);
+
+  if (pathname === '/api/worker-app/shutdown') {
+    if (req.headers.origin !== CODE_SPACE_ORIGIN || req.headers['x-code-space-action'] !== 'worker-app-shutdown') return json(res, 403, { error: 'Explicit same-origin shutdown confirmation is required' });
+    if (body?.confirmation !== 'SHUT_DOWN_WORKER_APP') return json(res, 400, { error: 'Shutdown confirmation is required' });
+    const child = spawn(process.execPath, ['worker-app-supervisor.js', '--stop-all'], { cwd: APP_ROOT, detached: true, windowsHide: true, stdio: 'ignore' });
+    child.unref();
+    return json(res, 202, { accepted: true });
+  }
 
   if (pathname === '/api/dispatch/run-readonly') {
     const result = await runReadOnlyDispatchTask(body.package, { root: ROOT });

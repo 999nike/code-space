@@ -39,6 +39,7 @@
     codeServerFrame: document.getElementById('codeServerFrame'),
     frameNotice: document.getElementById('frameNotice'),
     activeProjectLabel: document.getElementById('activeProjectLabel'),
+    shutdownDialog: document.getElementById('shutdownDialog'),
     toast: document.getElementById('toast')
   };
 
@@ -469,7 +470,16 @@
 
   function openExternal() {
     const project = projects().find((item) => item.id === activeProjectId) || null;
-    window.open(projectCodeUrl(project, { embedded: false }), '_blank', 'noopener,noreferrer');
+    window.open(projectCodeUrl(project), '_blank', 'noopener,noreferrer');
+  }
+
+  function openEditorLogin() { window.open('/editor/', '_blank', 'noopener,noreferrer'); }
+
+  async function shutdownWorkerApp() {
+    try {
+      await api('/api/worker-app/shutdown', { method: 'POST', headers: { 'X-Code-Space-Action': 'worker-app-shutdown' }, body: JSON.stringify({ confirmation: 'SHUT_DOWN_WORKER_APP' }) });
+      toast('Shutting down Worker App…');
+    } catch (error) { toast(error?.message || 'Could not shut down Worker App'); }
   }
 
   function shortRepo(value) {
@@ -546,6 +556,9 @@
   document.getElementById('saveSettingsButton').addEventListener('click', saveSettings);
   document.getElementById('exitCodeModeButton').addEventListener('click', exitCodeMode);
   document.getElementById('openExternalButton').addEventListener('click', openExternal);
+  document.getElementById('openEditorLoginButton').addEventListener('click', openEditorLogin);
+  document.getElementById('shutdownWorkerAppButton').addEventListener('click', () => els.shutdownDialog.showModal());
+  document.getElementById('confirmShutdownButton').addEventListener('click', shutdownWorkerApp);
   els.dispatchFileInput.addEventListener('change', () => {
     const file = els.dispatchFileInput.files?.[0];
     els.dispatchFileName.textContent = file ? file.name : 'No file selected';

@@ -258,6 +258,41 @@ async function ensureCodeServer() {
   return { running: await waitFor(SERVICES.codeServer.port, 30000), started: true, pid };
 }
 
+async function runPowerShell(script) {
+  return new Promise((resolve, reject) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 15000 }, (error, stdout, stderr) => error ? reject(new Error(String(stderr || error.message).trim())) : resolve(String(stdout || '').trim())));
+}
+
+async function stopCodeServer() {
+  if (!(await reachable(SERVICES.codeServer.port))) return;
+  log('Stopping code-server...');
+  await new Promise((resolve, reject) => execFile('wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-lc', "pid=$(ss -ltnp 'sport = :8080' 2>/dev/null | grep -o 'pid=[0-9]*' | head -n1 | cut -d= -f2); test -n \"$pid\" || exit 3; cmd=$(ps -p \"$pid\" -o args=); case \"$cmd\" in *code-server*) kill \"$pid\";; *) exit 4;; esac"], { windowsHide: true, timeout: 10000 }, (error, stdout, stderr) => error ? reject(new Error(`Refusing to stop code-server: ${String(stderr || error.message).trim()}`)) : resolve(String(stdout || '').trim())));
+  if (await waitFor(SERVICES.codeServer.port, 3000)) throw new Error('code-server did not stop cleanly');
+}
+
+async function stopMemorySpace() {
+  if (!(await reachable(SERVICES.memorySpace.port))) return;
+  log('Stopping Memory Space...');
+  await runPowerShell([`$c=Get-NetTCPConnection -LocalAddress '${HOST}' -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue|Select-Object -First 1`, 'if(-not $c){exit 0}', '$p=Get-CimInstance Win32_Process -Filter "ProcessId=$($c.OwningProcess)"', "if(-not $p -or $p.Name -notmatch '^python(\\.exe)?$' -or $p.CommandLine -notmatch '(?i)-m\\s+http\\.server\\s+8001'){throw 'Refusing to stop port 8001: listener is not managed Memory Space.'}", 'Stop-Process -Id $c.OwningProcess -Force'].join(';'));
+  if (await waitFor(SERVICES.memorySpace.port, 3000)) throw new Error('Memory Space did not stop cleanly');
+}
+
+async function stopMemoryBridge() {
+  if (!(await reachable(SERVICES.memoryBridge.port))) return;
+  log('Stopping Memory Bridge scheduled task...');
+  await runPowerShell("Stop-ScheduledTask -TaskName 'Memory Space Bridge' -ErrorAction Stop");
+  if (await waitFor(SERVICES.memoryBridge.port, 5000)) throw new Error('Memory Bridge did not stop cleanly');
+}
+
+async function stopWorkerApp() {
+  log('Worker App explicit shutdown requested');
+  await stopCodeServer();
+  if (await reachable(SERVICES.office.port)) { const status = await officeMemoryFeedStatus(); if (!status.managed) throw new Error('Refusing to stop port 4176: listener is not managed Office.'); await stopOfficeListener(); }
+  await stopMemorySpace();
+  await stopMemoryBridge();
+  await stopCodeSpaceListener();
+  log('Worker App stopped');
+}
+
 function openBrowserTab(url) {
   if (process.env.WORKER_APP_NO_BROWSER === '1' || process.platform !== 'win32') return;
   const child = spawn('cmd.exe', ['/c', 'start', '', url], {
@@ -270,7 +305,10 @@ function openBrowserTab(url) {
 
 async function main() {
   const restartOnly = process.argv.includes('--restart-code-space');
+  const stopAll = process.argv.includes('--stop-all');
   log(restartOnly ? 'Code Space managed restart requested' : 'Worker App startup requested');
+
+  if (stopAll) { await stopWorkerApp(); return; }
 
   if (restartOnly) {
     const codeSpace = await restartCodeSpace();

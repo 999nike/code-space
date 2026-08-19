@@ -98,6 +98,7 @@
         <p>The Code Space runtime stays loopback-only. Start Coding uses this address and starts code-server locally when it is not already running.</p>
         <div class="settings-actions"><button class="button secondary" id="testSettingsButton">Refresh status</button><button class="button primary" id="saveSettingsButton">Save</button></div>
       </div>
+      <div class="settings-card advanced-card"><p class="eyebrow">Advanced controls</p><h3>Worker App lifecycle</h3><p>Use only when you deliberately want to stop every local Worker App service.</p><div class="settings-actions"><button class="button secondary" id="openEditorLoginButton">Open editor login</button><button class="button danger" id="shutdownWorkerAppButton">Shut down Worker App</button></div></div>
     </section>
 
     <section class="dispatch-inbox-view" id="dispatchInboxView" hidden>
@@ -125,6 +126,7 @@
       <div class="modal-actions"><button type="button" class="button secondary" data-close-dialog>Cancel</button><button type="submit" class="button primary" id="projectSubmitButton">Create project</button></div>
     </form>
   </dialog>
+  <dialog class="modal" id="shutdownDialog"><form method="dialog"><div class="modal-head"><div><p class="eyebrow">Emergency action</p><h2>Shut down Worker App?</h2></div></div><p>This will stop Memory Space, Memory Bridge, Office, Code Space and code-server.</p><div class="modal-note">Your projects and saved workspace will not be deleted.</div><div class="modal-actions"><button class="button secondary" value="cancel">Cancel</button><button class="button danger" id="confirmShutdownButton" value="confirm">Shut down all services</button></div></form></dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="./dispatch-package.js?v=1" defer></script>
@@ -132,7 +134,7 @@
   <script src="./dispatch-runner.js?v=1" defer></script>
   <script src="./dispatch-results.js?v=1" defer></script>
   <script src="./dispatch-queue.js?v=1" defer></script>
-  <script src="./app.js?v=5" defer></script>
+  <script src="./app.js?v=6" defer></script>
   <script src="./dispatch-execution-ui.js?v=1" defer></script>
   <script src="./office-dispatch-storage-listener.js?v=1" defer></script>
   <script src="./office-dispatch-link.js?v=1" defer></script>
